@@ -26,7 +26,8 @@ export default function RelatoriosPage() {
       .select('*')
       .order('created_at', { ascending: false })
     if (!error && data) {
-      setCasais(data)
+      const filtered = data.filter(c => c.plano !== 'afiliado' && c.plano !== 'analista' && c.plano !== 'super_admin')
+      setCasais(filtered)
     }
     setLoading(false)
   }

@@ -63,7 +63,8 @@ export default function Dashboard() {
       .order('created_at', { ascending: false })
     
     if (!errorCasais && casaisData) {
-      setCasais(casaisData)
+      const filtered = casaisData.filter(c => c.plano !== 'afiliado' && c.plano !== 'analista' && c.plano !== 'super_admin')
+      setCasais(filtered)
       
       const { data: respostasData, error: errorRespostas } = await supabase
         .from('respostas')

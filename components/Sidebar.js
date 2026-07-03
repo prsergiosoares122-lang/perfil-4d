@@ -7,6 +7,7 @@ export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
 
+  const [role, setRole] = useState('Analista')
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
   useEffect(() => {
@@ -24,11 +25,25 @@ export default function Sidebar() {
         email.includes('admin')
       ) {
         setIsSuperAdmin(true)
+        setRole('Super Admin')
+      } else {
+        const { data } = await supabase
+          .from('casais')
+          .select('plano')
+          .eq('email_esposo', email)
+          .in('plano', ['afiliado', 'analista'])
+          .limit(1)
+        if (data && data[0]) {
+          const p = data[0].plano
+          setRole(p === 'afiliado' ? 'Afiliado' : 'Analista')
+        } else {
+          setRole('Analista')
+        }
       }
     }
   }
 
-  const menuItems = [
+  const allItems = [
     { label: 'Painel', path: '/dashboard/painel' },
     { label: 'Casais', path: '/dashboard' },
     { label: 'Leads', path: '/dashboard/leads' },
@@ -42,6 +57,14 @@ export default function Sidebar() {
       { label: 'Admin', path: '/dashboard/admin' }
     ] : [])
   ]
+
+  const menuItems = allItems.filter(item => {
+    if (role === 'Afiliado') {
+      const allowed = ['Painel', 'Casais', 'Relatórios', 'Tutorial']
+      return allowed.includes(item.label)
+    }
+    return true
+  })
 
   async function sair() {
     await supabase.auth.signOut()

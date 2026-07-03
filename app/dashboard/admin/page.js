@@ -6,9 +6,31 @@ import { supabase } from '@/lib/supabase'
 export default function AdminPage() {
   const router = useRouter()
   const [autorizado, setAutorizado] = useState(false)
+  const [busca, setBusca] = useState('')
+  const [modalAberto, setModalAberto] = useState(false)
+  const [detalhesAberto, setDetalhesAberto] = useState(false)
+  const [selecionado, setSelecionado] = useState(null)
+  
+  const [userRole, setUserRole] = useState('Super Admin')
+  const [afiliados, setAfiliados] = useState([])
+
+  // Campos do formulário de novo profissional
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [senha, setSenha] = useState('')
+  const [senhaVisivel, setSenhaVisivel] = useState(false)
+  const [papel, setPapel] = useState('Afiliado')
+  const [relatoriosIniciais, setRelatoriosIniciais] = useState('10')
+
+  // Campos de Ajuste de Relatórios (Modal Olho)
+  const [ajusteQtd, setAjusteQtd] = useState('5')
+  const [ajusteAcao, setAjusteAcao] = useState('Adicionar')
+  const [ajusteMotivo, setAjusteMotivo] = useState('')
 
   useEffect(() => {
     verificarAuth()
+    carregarProfissionais()
   }, [])
 
   async function verificarAuth() {
@@ -30,120 +52,127 @@ export default function AdminPage() {
       alert('Acesso Negado: Esta área é restrita a Super Administradores.')
       router.push('/dashboard')
     } else {
+      setUserRole('Super Admin')
       setAutorizado(true)
     }
   }
-  const [busca, setBusca] = useState('')
-  const [modalAberto, setModalAberto] = useState(false)
-  const [detalhesAberto, setDetalhesAberto] = useState(false)
-  const [selecionado, setSelecionado] = useState(null)
-  
-  // Perfil simulado para teste de níveis de acesso
-  const [roleSimulado, setRoleSimulado] = useState('Super Admin')
 
-  // Lista de Profissionais cadastrados
-  const [afiliados, setAfiliados] = useState([
-    { 
-      id: 1, 
-      nome: 'Dra. Heloísa Ribeiro', 
-      email: 'heloisa.ribeiro@perfil4d.com', 
-      papel: 'Analista', 
-      relatorios: 15, 
-      status: 'Ativo', 
-      historico: [
-        { data: '02/07/2026', acao: 'Adição', qtd: 15, motivo: 'Carga inicial do plano anual' }
-      ] 
-    },
-    { 
-      id: 2, 
-      nome: 'Dr. Marcos Vinícius', 
-      email: 'marcos.vinicius@perfil4d.com', 
-      papel: 'Analista', 
-      relatorios: 5, 
-      status: 'Ativo', 
-      historico: [
-        { data: '02/07/2026', acao: 'Adição', qtd: 5, motivo: 'Carga inicial de teste' }
-      ] 
-    },
-    { 
-      id: 3, 
-      nome: 'Psicanalista Sérgio Soares (Você)', 
-      email: 'sergio.soares@perfil4d.com', 
-      papel: 'Super Admin', 
-      relatorios: 'Ilimitados', 
-      status: 'Ativo', 
-      historico: [] 
+  async function carregarProfissionais() {
+    try {
+      const { data, error } = await supabase
+        .from('casais')
+        .select('*')
+        .in('plano', ['afiliado', 'analista', 'super_admin'])
+      if (error) throw error
+
+      const mapeados = (data || []).map(item => ({
+        id: item.id,
+        nome: item.nome_esposo,
+        email: item.email_esposo,
+        whatsapp: item.nome_esposa || '',
+        senha: item.email_esposa || '',
+        papel: item.plano === 'super_admin' ? 'Super Admin' : item.plano === 'analista' ? 'Analista' : 'Afiliado',
+        relatorios: item.plano === 'super_admin' ? 'Ilimitados' : 10,
+        status: item.status === 'Bloqueado' ? 'Bloqueado' : 'Ativo',
+        historico: []
+      }))
+      setAfiliados(mapeados)
+    } catch (err) {
+      console.error(err)
     }
-  ])
-
-  // Campos do formulário de novo profissional
-  const [nome, setNome] = useState('')
-  const [email, setEmail] = useState('')
-  const [papel, setPapel] = useState('Analista')
-  const [relatoriosIniciais, setRelatoriosIniciais] = useState('10')
-
-  // Campos de Ajuste de Relatórios (Modal Olho)
-  const [ajusteQtd, setAjusteQtd] = useState('5')
-  const [ajusteAcao, setAjusteAcao] = useState('Adicionar')
-  const [ajusteMotivo, setAjusteMotivo] = useState('')
-
-  const handleAddAfiliado = (e) => {
-    e.preventDefault()
-    if (!nome || !email) return
-
-    const novo = {
-      id: Date.now(),
-      nome,
-      email,
-      papel,
-      relatorios: papel === 'Super Admin' ? 'Ilimitados' : parseInt(relatoriosIniciais) || 0,
-      status: 'Ativo',
-      historico: papel === 'Super Admin' ? [] : [
-        { 
-          data: new Date().toLocaleDateString('pt-BR'), 
-          acao: 'Adição', 
-          qtd: parseInt(relatoriosIniciais) || 0, 
-          motivo: 'Carga na criação da conta' 
-        }
-      ]
-    }
-
-    setAfiliados(prev => [novo, ...prev])
-    setNome('')
-    setEmail('')
-    setPapel('Analista')
-    setRelatoriosIniciais('10')
-    setModalAberto(false)
-    alert('Profissional cadastrado com sucesso!')
   }
 
-  const handleBloquearAfiliado = (id, nomeProf, statusAtual) => {
-    if (roleSimulado !== 'Super Admin') {
+  const handleAddAfiliado = async (e) => {
+    e.preventDefault()
+    if (!nome || !email || !senha) return
+
+    try {
+      // 1. Criar credenciais no Supabase Auth
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: senha,
+      })
+      if (signUpError) throw new Error('Erro ao criar credenciais de acesso: ' + signUpError.message)
+
+      // 2. Inserir registro correspondente no banco
+      const planoDb = papel === 'Super Admin' ? 'super_admin' : papel === 'Analista' ? 'analista' : 'afiliado'
+      const { error: dbError } = await supabase
+        .from('casais')
+        .insert({
+          nome_esposo: nome,
+          email_esposo: email,
+          nome_esposa: whatsapp,
+          email_esposa: senha,
+          plano: planoDb,
+          status: 'Ativo'
+        })
+      
+      if (dbError) throw new Error('Erro ao persistir profissional no banco: ' + dbError.message)
+
+      await carregarProfissionais()
+
+      setNome('')
+      setEmail('')
+      setWhatsapp('')
+      setSenha('')
+      setPapel('Afiliado')
+      setModalAberto(false)
+      alert('Profissional cadastrado com sucesso!')
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  const handleBloquearAfiliado = async (id, nomeProf, statusAtual) => {
+    if (userRole !== 'Super Admin') {
       alert('Acesso Negado: Apenas o Super Admin tem autoridade para bloquear/desbloquear profissionais.')
       return
     }
 
     const acaoLabel = statusAtual === 'Ativo' ? 'bloquear' : 'desbloquear'
     if (confirm(`Deseja realmente ${acaoLabel} o profissional "${nomeProf}"?`)) {
-      setAfiliados(prev => prev.map(a => {
-        if (a.id === id) {
-          return { ...a, status: a.status === 'Ativo' ? 'Bloqueado' : 'Ativo' }
-        }
-        return a
-      }))
+      try {
+        const novoStatus = statusAtual === 'Ativo' ? 'Bloqueado' : 'Ativo'
+        const { error } = await supabase
+          .from('casais')
+          .update({ status: novoStatus })
+          .eq('id', id)
+        if (error) throw error
+
+        setAfiliados(prev => prev.map(a => {
+          if (a.id === id) {
+            return { ...a, status: novoStatus }
+          }
+          return a
+        }))
+        alert(`Profissional ${statusAtual === 'Ativo' ? 'bloqueado' : 'desbloqueado'} com sucesso!`)
+      } catch (err) {
+        alert('Erro ao atualizar status: ' + err.message)
+      }
     }
   }
 
-  const handleDeletarAfiliado = (id, nomeProf) => {
-    if (roleSimulado !== 'Super Admin') {
+  const handleDeletarAfiliado = async (id, nomeProf) => {
+    if (userRole !== 'Super Admin') {
       alert('Acesso Negado: Apenas o Super Admin tem autoridade para excluir profissionais do sistema.')
       return
     }
 
     if (confirm(`Tem certeza de que deseja remover permanentemente o profissional "${nomeProf}"?`)) {
-      setAfiliados(prev => prev.filter(a => a.id !== id))
-      if (selecionado && selecionado.id === id) {
-        setDetalhesAberto(false)
+      try {
+        const { error } = await supabase
+          .from('casais')
+          .delete()
+          .eq('id', id)
+        if (error) throw error
+
+        setAfiliados(prev => prev.filter(a => a.id !== id))
+        if (selecionado && selecionado.id === id) {
+          setDetalhesAberto(false)
+        }
+        alert('Profissional removido com sucesso!')
+      } catch (err) {
+        alert('Erro ao excluir profissional: ' + err.message)
       }
     }
   }
@@ -316,8 +345,8 @@ export default function AdminPage() {
                             onClick={() => handleBloquearAfiliado(a.id, a.nome, a.status)}
                             style={{
                               ...styles.btnAcao,
-                              opacity: roleSimulado === 'Super Admin' ? 1 : 0.4,
-                              cursor: roleSimulado === 'Super Admin' ? 'pointer' : 'not-allowed',
+                              opacity: userRole === 'Super Admin' ? 1 : 0.4,
+                              cursor: userRole === 'Super Admin' ? 'pointer' : 'not-allowed',
                               color: isBloqueado ? '#E65100' : '#2E7D32',
                               borderColor: isBloqueado ? '#FFE082' : '#C8E6C9',
                               background: isBloqueado ? '#FFF8E1' : '#E8F5E9'
@@ -332,8 +361,8 @@ export default function AdminPage() {
                             onClick={() => handleDeletarAfiliado(a.id, a.nome)}
                             style={{
                               ...styles.btnAcao,
-                              opacity: roleSimulado === 'Super Admin' ? 1 : 0.4,
-                              cursor: roleSimulado === 'Super Admin' ? 'pointer' : 'not-allowed'
+                              opacity: userRole === 'Super Admin' ? 1 : 0.4,
+                              cursor: userRole === 'Super Admin' ? 'pointer' : 'not-allowed'
                             }}
                             title="Remover Profissional"
                           >
@@ -383,12 +412,56 @@ export default function AdminPage() {
               </div>
 
               <div style={styles.modalGrupo}>
+                <label style={styles.modalLabel}>WhatsApp *</label>
+                <input 
+                  style={styles.modalInput} 
+                  value={whatsapp} 
+                  onChange={e => setWhatsapp(e.target.value)} 
+                  placeholder="Ex: 5521974013287" 
+                  required 
+                />
+              </div>
+
+              <div style={styles.modalGrupo}>
+                <label style={styles.modalLabel}>Senha *</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input 
+                    style={{ ...styles.modalInput, paddingRight: '45px' }} 
+                    type={senhaVisivel ? "text" : "password"}
+                    value={senha} 
+                    onChange={e => setSenha(e.target.value)} 
+                    placeholder="Defina a senha" 
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSenhaVisivel(!senhaVisivel)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {senhaVisivel ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.modalGrupo}>
                 <label style={styles.modalLabel}>Papel / Acesso</label>
                 <select 
                   style={styles.modalSelect} 
                   value={papel} 
                   onChange={e => setPapel(e.target.value)}
                 >
+                  <option value="Afiliado">Afiliado</option>
                   <option value="Analista">Analista</option>
                   <option value="Super Admin">Super Admin</option>
                 </select>
@@ -432,6 +505,16 @@ export default function AdminPage() {
               <div style={styles.detalhesRow}>
                 <span style={styles.detalhesLabel}>E-mail:</span>
                 <span style={styles.detalhesVal}>{selecionado.email}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>WhatsApp:</span>
+                <span style={styles.detalhesVal}>{selecionado.whatsapp}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Senha de Acesso:</span>
+                <span style={{ ...styles.detalhesVal, fontWeight: 'bold', color: '#C62828' }}>
+                  {selecionado.senha || '(Sem senha salva)'}
+                </span>
               </div>
               <div style={styles.detalhesRow}>
                 <span style={styles.detalhesLabel}>Papel:</span>

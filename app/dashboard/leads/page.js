@@ -1,47 +1,100 @@
 'use client'
-import { useState } from 'react'
-
-const STATUS_LEAD = {
-  novo: { texto: 'Novo', cor: '#1565C0', bg: '#E3F2FD' },
-  contato: { texto: 'Em Contato', cor: '#E65100', bg: '#FFF8E1' },
-  convertido: { texto: 'Convertido', cor: '#2E7D32', bg: '#E8F5E9' }
-}
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function LeadsPage() {
-  const [leads, setLeads] = useState([
-    { id: 1, nome: 'Carlos Eduardo', email: 'carlos@email.com', origem: 'WhatsApp', data: '03/07/2026', status: 'contato' },
-    { id: 2, nome: 'Fernanda Lima', email: 'fernanda@email.com', origem: 'Instagram', data: '02/07/2026', status: 'novo' },
-    { id: 3, nome: 'Juliana Ramos', email: 'juliana@email.com', origem: 'Indicação', data: '28/06/2026', status: 'convertido' }
-  ])
-  
+  const router = useRouter()
+  const [leads, setLeads] = useState([])
   const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState('todos')
   const [modalAberto, setModalAberto] = useState(false)
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [senha, setSenha] = useState('')
+  const [senhaCadastroVisivel, setSenhaCadastroVisivel] = useState(false)
+  const [senhaRevelada, setSenhaRevelada] = useState({})
   const [origem, setOrigem] = useState('WhatsApp')
-  const [status, setStatus] = useState('novo')
+
+  // Detalhamento e Alteração de Senha
+  const [detalhesLeadAberto, setDetalhesLeadAberto] = useState(false)
+  const [leadSelecionado, setLeadSelecionado] = useState(null)
+  const [modalAlterarSenhaAberto, setModalAlterarSenhaAberto] = useState(false)
+  const [novaSenha, setNovaSenha] = useState('')
+  const [novaSenhaVisivel, setNovaSenhaVisivel] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('perfil4d_leads')
+    if (saved) {
+      setLeads(JSON.parse(saved))
+    } else {
+      const defaultLeads = [
+        { id: 1, nome: 'Carlos Eduardo', email: 'carlos@email.com', origem: 'WhatsApp', data: '03/07/2026', whatsapp: '5521974013287', senha: 'senha_carlos' },
+        { id: 2, nome: 'Fernanda Lima', email: 'fernanda@email.com', origem: 'Instagram', data: '02/07/2026', whatsapp: '5511999999999', senha: 'senha_fernanda' },
+        { id: 3, nome: 'Juliana Ramos', email: 'juliana@email.com', origem: 'Indicação', data: '28/06/2026', whatsapp: '5531988888888', senha: 'senha_juliana' }
+      ]
+      setLeads(defaultLeads)
+      localStorage.setItem('perfil4d_leads', JSON.stringify(defaultLeads))
+    }
+  }, [])
 
   const handleAddLead = (e) => {
     e.preventDefault()
     if (!nome) return
     const dataAtual = new Date().toLocaleDateString('pt-BR')
-    setLeads(prev => [
-      { id: Date.now(), nome, email: email || 'Sem e-mail', origem, data: dataAtual, status },
-      ...prev
-    ])
+    const novoLead = {
+      id: Date.now(),
+      nome,
+      email: email || 'Sem e-mail',
+      whatsapp: whatsapp || 'Sem WhatsApp',
+      senha: senha || '123456',
+      origem,
+      data: dataAtual
+    }
+    const updated = [novoLead, ...leads]
+    setLeads(updated)
+    localStorage.setItem('perfil4d_leads', JSON.stringify(updated))
+    
     setNome('')
     setEmail('')
+    setWhatsapp('')
+    setSenha('')
     setOrigem('WhatsApp')
-    setStatus('novo')
     setModalAberto(false)
+  }
+
+  const handleDeletarLead = (id, nomeLead) => {
+    if (confirm(`Deseja realmente excluir o lead "${nomeLead}"?`)) {
+      const updated = leads.filter(l => l.id !== id)
+      setLeads(updated)
+      localStorage.setItem('perfil4d_leads', JSON.stringify(updated))
+    }
+  }
+
+  const handleAlterarSenha = (e) => {
+    e.preventDefault()
+    if (!novaSenha) return
+    
+    const updated = leads.map(l => {
+      if (l.id === leadSelecionado.id) {
+        const updatedLead = { ...l, senha: novaSenha }
+        setLeadSelecionado(updatedLead)
+        return updatedLead
+      }
+      return l
+    })
+    setLeads(updated)
+    localStorage.setItem('perfil4d_leads', JSON.stringify(updated))
+    
+    setNovaSenha('')
+    setModalAlterarSenhaAberto(false)
+    alert('Senha alterada com sucesso!')
   }
 
   const leadsFiltrados = leads.filter(lead => {
     const matchBusca = lead.nome.toLowerCase().includes(busca.toLowerCase()) || 
-                       lead.email.toLowerCase().includes(busca.toLowerCase())
-    const matchFiltro = filtro === 'todos' || lead.status === filtro
-    return matchBusca && matchFiltro
+                       lead.email.toLowerCase().includes(busca.toLowerCase()) ||
+                       (lead.whatsapp && lead.whatsapp.toLowerCase().includes(busca.toLowerCase()))
+    return matchBusca
   })
 
   return (
@@ -57,24 +110,14 @@ export default function LeadsPage() {
         </button>
       </div>
 
-      {/* Actions and Filters Bar */}
+      {/* Actions Bar */}
       <div style={styles.actionsBar}>
         <input 
           style={styles.busca} 
-          placeholder="Buscar por nome ou e-mail..."
+          placeholder="Buscar por nome, e-mail ou WhatsApp..."
           value={busca}
           onChange={e => setBusca(e.target.value)}
         />
-        <select 
-          style={styles.select} 
-          value={filtro}
-          onChange={e => setFiltro(e.target.value)}
-        >
-          <option value="todos">Todos os status</option>
-          <option value="novo">Novos</option>
-          <option value="contato">Em Contato</option>
-          <option value="convertido">Convertidos</option>
-        </select>
       </div>
 
       {/* Leads Table Card */}
@@ -90,28 +133,76 @@ export default function LeadsPage() {
                   <th style={styles.th}>E-mail</th>
                   <th style={styles.th}>Origem</th>
                   <th style={styles.th}>Data de Entrada</th>
-                  <th style={styles.th}>Status</th>
+                  <th style={styles.th}>WhatsApp</th>
+                  <th style={styles.th}>Senha</th>
+                  <th style={styles.th} style={{ textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {leadsFiltrados.map(lead => {
-                  const s = STATUS_LEAD[lead.status] || STATUS_LEAD.novo
+                  const isSenhaRevelada = !!senhaRevelada[lead.id]
                   return (
                     <tr key={lead.id} style={styles.tr}>
                       <td style={styles.td}>
-                        <span style={styles.leadName}>{lead.nome}</span>
+                        <span 
+                          onClick={() => {
+                            setLeadSelecionado(lead)
+                            setDetalhesLeadAberto(true)
+                          }}
+                          style={{
+                            ...styles.leadName,
+                            cursor: 'pointer',
+                            color: '#1565C0',
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          {lead.nome}
+                        </span>
                       </td>
                       <td style={styles.td}>{lead.email}</td>
                       <td style={styles.td}>{lead.origem}</td>
                       <td style={styles.td}>{lead.data}</td>
+                      <td style={styles.td}>{lead.whatsapp}</td>
                       <td style={styles.td}>
-                        <span style={{
-                          ...styles.statusBadge,
-                          background: s.bg,
-                          color: s.cor
-                        }}>
-                          {s.texto}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontFamily: isSenhaRevelada ? 'inherit' : 'monospace' }}>
+                            {isSenhaRevelada ? lead.senha : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSenhaRevelada(prev => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              fontSize: '14px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {isSenhaRevelada ? '👁️' : '🙈'}
+                          </button>
+                        </div>
+                      </td>
+                      <td style={styles.td} style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleDeletarLead(lead.id, lead.nome)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '16px',
+                            color: '#C62828'
+                          }}
+                          title="Excluir Lead"
+                        >
+                          🗑️
+                        </button>
                       </td>
                     </tr>
                   )
@@ -154,6 +245,49 @@ export default function LeadsPage() {
               </div>
 
               <div style={styles.modalGrupo}>
+                <label style={styles.modalLabel}>Número do WhatsApp *</label>
+                <input 
+                  style={styles.modalInput} 
+                  value={whatsapp} 
+                  onChange={e => setWhatsapp(e.target.value)} 
+                  placeholder="Ex: 5521974013287" 
+                  required
+                />
+              </div>
+
+              <div style={styles.modalGrupo}>
+                <label style={styles.modalLabel}>Definir Senha *</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input 
+                    style={{ ...styles.modalInput, paddingRight: '45px' }} 
+                    type={senhaCadastroVisivel ? "text" : "password"}
+                    value={senha} 
+                    onChange={e => setSenha(e.target.value)} 
+                    placeholder="Defina a senha do lead" 
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSenhaCadastroVisivel(!senhaCadastroVisivel)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {senhaCadastroVisivel ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.modalGrupo}>
                 <label style={styles.modalLabel}>Origem da Lead</label>
                 <select style={styles.modalSelect} value={origem} onChange={e => setOrigem(e.target.value)}>
                   <option value="WhatsApp">WhatsApp</option>
@@ -164,17 +298,114 @@ export default function LeadsPage() {
                 </select>
               </div>
 
+              <button type="submit" style={styles.btnModalSalvar}>
+                Salvar Lead
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Detalhes do Lead */}
+      {detalhesLeadAberto && leadSelecionado && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '540px' }}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Detalhamento do Lead</h3>
+              <button onClick={() => setDetalhesLeadAberto(false)} style={styles.modalFecharBtn}>✕</button>
+            </div>
+            
+            <div style={styles.detalhesLayout}>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Nome do Lead:</span>
+                <span style={styles.detalhesVal}>{leadSelecionado.nome}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>E-mail:</span>
+                <span style={styles.detalhesVal}>{leadSelecionado.email}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>WhatsApp:</span>
+                <span style={styles.detalhesVal}>{leadSelecionado.whatsapp}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Origem da Lead:</span>
+                <span style={styles.detalhesVal}>{leadSelecionado.origem}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Data de Entrada:</span>
+                <span style={styles.detalhesVal}>{leadSelecionado.data}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Senha Atual:</span>
+                <span style={{ ...styles.detalhesVal, fontWeight: 'bold', color: '#C62828' }}>
+                  {leadSelecionado.senha}
+                </span>
+              </div>
+            </div>
+
+            <div style={styles.divider}></div>
+
+            {/* CONFIGURAÇÕES DE ACESSO */}
+            <div style={{ marginTop: '20px' }}>
+              <h4 style={styles.secaoTitle}>CONFIGURAÇÕES DE ACESSO</h4>
+              <p style={{ fontSize: '13px', color: '#666', marginBottom: '12px' }}>
+                Gerencie as credenciais e altere a senha de acesso deste lead.
+              </p>
+              <button 
+                onClick={() => setModalAlterarSenhaAberto(true)} 
+                style={styles.btnAlterarSenha}
+              >
+                🔒 ALTERAR SENHA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Alterar Senha do Lead */}
+      {modalAlterarSenhaAberto && leadSelecionado && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '400px', zIndex: 10000 }}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Alterar Senha do Lead</h3>
+              <button onClick={() => setModalAlterarSenhaAberto(false)} style={styles.modalFecharBtn}>✕</button>
+            </div>
+            <form onSubmit={handleAlterarSenha} style={styles.modalForm}>
               <div style={styles.modalGrupo}>
-                <label style={styles.modalLabel}>Status Inicial</label>
-                <select style={styles.modalSelect} value={status} onChange={e => setStatus(e.target.value)}>
-                  <option value="novo">Novo</option>
-                  <option value="contato">Em Contato</option>
-                  <option value="convertido">Convertido</option>
-                </select>
+                <label style={styles.modalLabel}>Nova Senha *</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input 
+                    style={{ ...styles.modalInput, paddingRight: '45px' }} 
+                    type={novaSenhaVisivel ? "text" : "password"}
+                    value={novaSenha} 
+                    onChange={e => setNovaSenha(e.target.value)} 
+                    placeholder="Defina a nova senha" 
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setNovaSenhaVisivel(!novaSenhaVisivel)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {novaSenhaVisivel ? '👁️' : '🙈'}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" style={styles.btnModalSalvar}>
-                Salvar Lead
+                Salvar Nova Senha
               </button>
             </form>
           </div>
@@ -394,4 +625,48 @@ const styles = {
     boxShadow: '0 4px 12px rgba(13,27,62,0.1)',
     marginTop: '10px',
   },
+  detalhesLayout: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginTop: '16px',
+  },
+  detalhesRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    paddingBottom: '8px',
+    borderBottom: '1px dashed #eee',
+  },
+  detalhesLabel: {
+    fontWeight: 'bold',
+    color: '#666',
+    fontSize: '13.5px',
+  },
+  detalhesVal: {
+    color: '#0D1B3E',
+    fontSize: '13.5px',
+  },
+  divider: {
+    height: '1px',
+    background: '#E5E7EB',
+    margin: '24px 0 16px',
+  },
+  secaoTitle: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#0D1B3E',
+    letterSpacing: '0.5px',
+    marginBottom: '8px',
+  },
+  btnAlterarSenha: {
+    padding: '10px 16px',
+    background: '#C62828',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '12.5px',
+    cursor: 'pointer',
+    letterSpacing: '0.5px',
+  }
 }
