@@ -36,17 +36,40 @@ function QuestionarioContent() {
   const [perguntasState, setPerguntasState] = useState(PERGUNTAS)
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const custom = localStorage.getItem('perfil4d_perguntas_customizadas')
-      if (custom) {
-        try {
-          setPerguntasState(JSON.parse(custom))
-        } catch (e) {
-          console.error("Erro ao carregar perguntas customizadas:", e)
-        }
-      }
-    }
+    carregarPerguntasBanco()
   }, [])
+
+  async function carregarPerguntasBanco() {
+    try {
+      const { data, error } = await supabase
+        .from('perguntas')
+        .select('numero, texto')
+        .order('numero', { ascending: true })
+      
+      if (!error && data && data.length === 84) {
+        const parsed = {}
+        const categoriasOrdem = [
+          'comunicativo', 'socializante', 'analitico', 'determinante',
+          'empatia', 'expressividade', 'resiliencia', 'proatividade',
+          'espiritualidade', 'financeiro', 'sinergia', 'sexualidade'
+        ]
+        categoriasOrdem.forEach((cat, catIdx) => {
+          parsed[cat] = []
+          for (let i = 0; i < 7; i++) {
+            const globalIdx = catIdx * 7 + i
+            if (data[globalIdx]) {
+              parsed[cat].push(data[globalIdx].texto)
+            }
+          }
+        })
+        setPerguntasState(parsed)
+      } else if (error) {
+        console.warn("Erro ao buscar perguntas do Supabase:", error)
+      }
+    } catch (err) {
+      console.warn("Falha na rede ao carregar perguntas do Supabase:", err)
+    }
+  }
 
   const comportamentoAtual = TODOS[blocoAtual]
   const perguntasAtuais = perguntasState[comportamentoAtual] || []

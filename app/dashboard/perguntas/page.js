@@ -2,14 +2,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { PERGUNTAS, BLOCOS, NOMES } from '@/lib/perguntas'
 
 export default function PerguntasPage() {
   const router = useRouter()
+  const [perguntas, setPerguntas] = useState([])
   const [loading, setLoading] = useState(true)
-  const [perguntasState, setPerguntasState] = useState({})
   const [avisoSucesso, setAvisoSucesso] = useState('')
-  const [editando, setEditando] = useState(null) // { categoria, index, valor }
+  const [editando, setEditando] = useState(null) // { numero, texto }
+  const [salvandoId, setSalvandoId] = useState(null)
 
   useEffect(() => {
     verificarAuth()
@@ -21,57 +21,69 @@ export default function PerguntasPage() {
     if (!session) router.push('/login')
   }
 
-  function carregarPerguntas() {
+  async function carregarPerguntas() {
     setLoading(true)
-    const salvas = localStorage.getItem('perfil4d_perguntas_customizadas')
-    if (salvas) {
-      try {
-        setPerguntasState(JSON.parse(salvas))
-      } catch (e) {
-        console.error(e)
-        setPerguntasState(JSON.parse(JSON.stringify(PERGUNTAS)))
-      }
-    } else {
-      setPerguntasState(JSON.parse(JSON.stringify(PERGUNTAS)))
+    const { data, error } = await supabase
+      .from('perguntas')
+      .select('*')
+      .order('numero', { ascending: true })
+    if (!error && data) {
+      setPerguntas(data)
+    } else if (error) {
+      console.error("Erro ao carregar perguntas:", error)
     }
     setLoading(false)
   }
 
-  const handleEditClick = (categoria, index, valorAtual) => {
-    setEditando({ categoria, index, valor: valorAtual })
-  }
-
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault()
     if (!editando) return
 
-    const copia = JSON.parse(JSON.stringify(perguntasState))
-    copia[editando.categoria][editando.index] = editando.valor
+    setSalvandoId(editando.numero)
+    
+    // Atualizar no Supabase
+    const { error } = await supabase
+      .from('perguntas')
+      .update({ texto: editando.texto })
+      .eq('numero', editando.numero)
 
-    setPerguntasState(copia)
-    localStorage.setItem('perfil4d_perguntas_customizadas', JSON.stringify(copia))
-    setEditando(null)
-    dispararSucesso('Pergunta atualizada e salva com sucesso!')
-  }
-
-  const handleResetPadrao = () => {
-    if (confirm('Tem certeza de que deseja redefinir todas as perguntas para o padrão original de fábrica? Isso apagará suas edições personalizadas.')) {
-      localStorage.removeItem('perfil4d_perguntas_customizadas')
-      setPerguntasState(JSON.parse(JSON.stringify(PERGUNTAS)))
-      dispararSucesso('Perguntas restauradas para o padrão com sucesso!')
+    if (!error) {
+      // Atualizar no estado local
+      setPerguntas(prev => prev.map(q => {
+        if (q.numero === editando.numero) {
+          return { ...q, texto: editando.texto }
+        }
+        return q
+      }))
+      dispararSucesso(`Pergunta Q${editando.numero} atualizada com sucesso no banco de dados!`)
+      setEditando(null)
+    } else {
+      alert("Erro ao salvar pergunta: " + error.message)
     }
+    setSalvandoId(null)
   }
 
   const dispararSucesso = (msg) => {
     setAvisoSucesso(msg)
     setTimeout(() => {
       setAvisoSucesso('')
-    }, 3000)
+    }, 4000)
   }
 
-  const categoriasOrdem = [...BLOCOS.bloco1, ...BLOCOS.bloco2]
-
-  let globalIndex = 0
+  const categorias = [
+    { key: 'comunicativo', nome: 'Comunicativo' },
+    { key: 'socializante', nome: 'Socializante' },
+    { key: 'analitico', nome: 'Analítico' },
+    { key: 'determinante', nome: 'Determinante' },
+    { key: 'empatia', nome: 'Empatia' },
+    { key: 'expressividade', nome: 'Expressividade' },
+    { key: 'resiliencia', nome: 'Resiliência' },
+    { key: 'proatividade', nome: 'Proatividade' },
+    { key: 'espiritualidade', nome: 'Espiritualidade' },
+    { key: 'financeiro', nome: 'Liberdade Financeira' },
+    { key: 'sinergia', nome: 'Sinergia' },
+    { key: 'sexualidade', nome: 'Sexualidade Afetiva' }
+  ]
 
   return (
     <div style={styles.container}>
@@ -79,11 +91,8 @@ export default function PerguntasPage() {
       <div style={styles.topBar}>
         <div>
           <h2 style={styles.pageTitle}>Banco de Perguntas</h2>
-          <p style={styles.pageSubtitle}>Personalize o texto das 84 perguntas clínicas que constituem a análise do Perfil 4D.</p>
+          <p style={styles.pageSubtitle}>Personalize e edite em tempo real as 84 perguntas da avaliação comportamental salvas no Supabase.</p>
         </div>
-        <button onClick={handleResetPadrao} style={styles.btnReset}>
-          Resetar Padrões
-        </button>
       </div>
 
       {avisoSucesso && (
@@ -95,46 +104,56 @@ export default function PerguntasPage() {
       {loading ? (
         <div style={styles.loading}>
           <div style={styles.spinner}></div>
-          <p style={{ marginTop: 12, color: '#888' }}>Carregando perguntas...</p>
+          <p style={{ marginTop: 12, color: '#888' }}>Carregando perguntas do Supabase...</p>
         </div>
       ) : (
         <div style={styles.sectionsContainer}>
-          {categoriasOrdem.map(categoria => {
-            const list = perguntasState[categoria] || []
-            const nomeCat = NOMES[categoria] || categoria
+          {categorias.map((cat, catIdx) => {
+            const questoesDaCat = perguntas.slice(catIdx * 7, (catIdx + 1) * 7)
             
             return (
-              <div key={categoria} style={styles.categoryCard}>
-                <h3 style={styles.categoryTitle}>{nomeCat}</h3>
+              <div key={cat.key} style={styles.categoryCard}>
+                <h3 style={styles.categoryTitle}>{cat.nome}</h3>
                 
                 <div style={styles.questionsList}>
-                  {list.map((texto, idx) => {
-                    globalIndex++
-                    const isEditandoEsta = editando && editando.categoria === categoria && editando.index === idx
+                  {questoesDaCat.map(q => {
+                    const isEditando = editando && editando.numero === q.numero
+                    const isSalvando = salvandoId === q.numero
 
                     return (
-                      <div key={idx} style={styles.questionRow}>
-                        <span style={styles.globalNum}>Q{globalIndex}</span>
+                      <div key={q.numero} style={styles.questionRow}>
+                        <span style={styles.globalNum}>Q{q.numero}</span>
                         
-                        {isEditandoEsta ? (
+                        {isEditando ? (
                           <form onSubmit={handleSaveEdit} style={styles.editForm}>
                             <input 
                               style={styles.editInput}
-                              value={editando.valor}
-                              onChange={e => setEditando({ ...editando, valor: e.target.value })}
+                              value={editando.texto}
+                              onChange={e => setEditando({ ...editando, texto: e.target.value })}
                               required
                               autoFocus
+                              disabled={isSalvando}
                             />
                             <div style={styles.editFormActions}>
-                              <button type="submit" style={styles.btnSalvarInline}>Salvar</button>
-                              <button type="button" onClick={() => setEditando(null)} style={styles.btnCancelarInline}>Cancelar</button>
+                              <button type="submit" disabled={isSalvando} style={styles.btnSalvarInline}>
+                                {isSalvando ? 'Salvando...' : 'Salvar'}
+                              </button>
+                              <button type="button" disabled={isSalvando} onClick={() => setEditando(null)} style={styles.btnCancelarInline}>
+                                Cancelar
+                              </button>
                             </div>
                           </form>
                         ) : (
                           <>
-                            <span style={styles.questionText}>{texto}</span>
+                            <span 
+                              style={styles.questionText} 
+                              onClick={() => setEditando({ numero: q.numero, texto: q.texto })}
+                              title="Clique para editar o texto desta pergunta"
+                            >
+                              {q.texto}
+                            </span>
                             <button 
-                              onClick={() => handleEditClick(categoria, idx, texto)} 
+                              onClick={() => setEditando({ numero: q.numero, texto: q.texto })} 
                               style={styles.btnEditar}
                             >
                               Editar
@@ -180,17 +199,6 @@ const styles = {
     fontSize: '13.5px',
     color: '#666',
     margin: '4px 0 0 0',
-  },
-  btnReset: {
-    padding: '12px 20px',
-    background: '#fff',
-    color: '#D32F2F',
-    border: '1px solid #FFCDD2',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
   },
   alertSucesso: {
     background: '#E8F5E9',
@@ -254,6 +262,12 @@ const styles = {
     color: '#0D1B3E',
     flex: 1,
     minWidth: '280px',
+    cursor: 'pointer',
+    padding: '4px 0',
+    transition: 'color 0.2s',
+    ':hover': {
+      color: '#C9A84C'
+    }
   },
   btnEditar: {
     padding: '6px 14px',

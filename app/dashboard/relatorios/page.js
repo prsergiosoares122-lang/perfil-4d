@@ -144,36 +144,82 @@ export default function RelatoriosPage() {
                         <div style={styles.actionsGrid}>
                           {/* 1. Análise Comparativa (Unified Screen) */}
                           <button 
-                            onClick={() => router.push(`/relatorio-final?id=${c.id}`)}
-                            style={styles.btnComparativo}
+                            onClick={() => {
+                              if (completo) {
+                                router.push(`/relatorio-final?id=${c.id}`)
+                              } else {
+                                alert("Aguarde a finalização de ambos os cônjuges para acessar o Relatório Final (PDF).")
+                              }
+                            }}
+                            style={{
+                              ...styles.btnComparativo,
+                              ...(completo ? {} : styles.btnComparativoDisabled)
+                            }}
                           >
-                            Análise Comparativa
+                            Relatório Final (PDF)
                           </button>
 
                           {/* Sub-reports links */}
-                          <div style={styles.subReportsRow}>
-                            <button 
-                              onClick={() => router.push(`/dashboard/relatorio/${c.id}/esposo`)}
-                              style={styles.btnSubReport}
-                              title="Ver relatório individual do esposo"
-                            >
-                              👨 Relatório Esposo
-                            </button>
-                            <button 
-                              onClick={() => router.push(`/dashboard/relatorio/${c.id}/esposa`)}
-                              style={styles.btnSubReport}
-                              title="Ver relatório individual da esposa"
-                            >
-                              👩 Relatório Esposa
-                            </button>
-                            <button 
-                              onClick={() => router.push(`/dashboard/relatorio/${c.id}/comparativo`)}
-                              style={{ ...styles.btnSubReport, background: '#C9A84C', color: '#0D1B3E' }}
-                              title="Ver gráfico comparativo de devolutiva clínica"
-                            >
-                              ⚖️ Devolutiva
-                            </button>
-                          </div>
+                          {(() => {
+                            const esposoPronto = c.status === 'esposo_respondeu' || c.status === 'completo' || c.status === 'relatorio_gerado'
+                            const esposaPronto = c.status === 'esposa_respondeu' || c.status === 'completo' || c.status === 'relatorio_gerado'
+                            const devolutivaPronto = c.status === 'completo' || c.status === 'relatorio_gerado'
+
+                            return (
+                              <div style={styles.subReportsRow}>
+                                <button 
+                                  onClick={() => {
+                                    if (esposoPronto) {
+                                      router.push(`/dashboard/relatorio/${c.id}/esposo`)
+                                    } else {
+                                      alert("O cônjuge Esposo ainda não respondeu ao questionário.")
+                                    }
+                                  }}
+                                  style={{
+                                    ...styles.btnSubReport,
+                                    ...(esposoPronto ? {} : styles.btnSubReportDisabled)
+                                  }}
+                                  title="Ver relatório individual do esposo"
+                                >
+                                  👨 Esposo
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    if (esposaPronto) {
+                                      router.push(`/dashboard/relatorio/${c.id}/esposa`)
+                                    } else {
+                                      alert("O cônjuge Esposa ainda não respondeu ao questionário.")
+                                    }
+                                  }}
+                                  style={{
+                                    ...styles.btnSubReport,
+                                    ...(esposaPronto ? {} : styles.btnSubReportDisabled)
+                                  }}
+                                  title="Ver relatório individual da esposa"
+                                >
+                                  👩 Esposa
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    if (devolutivaPronto) {
+                                      router.push(`/dashboard/relatorio/${c.id}/comparativo`)
+                                    } else {
+                                      alert("Aguarde o preenchimento de ambos os cônjuges para acessar o gráfico de Devolutiva.")
+                                    }
+                                  }}
+                                  style={{
+                                    ...styles.btnSubReport,
+                                    background: devolutivaPronto ? '#C9A84C' : '#E5E7EB',
+                                    color: devolutivaPronto ? '#0D1B3E' : '#9CA3AF',
+                                    ...(devolutivaPronto ? {} : styles.btnSubReportDisabled)
+                                  }}
+                                  title="Ver gráfico comparativo de devolutiva clínica"
+                                >
+                                  ⚖️ Devolutiva
+                                </button>
+                              </div>
+                            )
+                          })()}
                         </div>
                       </td>
 
@@ -360,5 +406,19 @@ const styles = {
     textAlign: 'center',
     padding: '40px',
     color: '#888',
+  },
+  btnComparativoDisabled: {
+    background: '#E5E7EB',
+    color: '#9CA3AF',
+    cursor: 'not-allowed',
+    border: '1px solid #D1D5DB',
+    boxShadow: 'none',
+  },
+  btnSubReportDisabled: {
+    background: '#F3F4F6',
+    color: '#9CA3AF',
+    border: '1px solid #E5E7EB',
+    cursor: 'not-allowed',
+    opacity: 0.6,
   }
 }
