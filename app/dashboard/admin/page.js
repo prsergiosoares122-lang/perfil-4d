@@ -1,21 +1,91 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminPage() {
+  const router = useRouter()
+  const [autorizado, setAutorizado] = useState(false)
+
+  useEffect(() => {
+    verificarAuth()
+  }, [])
+
+  async function verificarAuth() {
+    if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('code='))) {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+      return
+    }
+    const email = session.user.email.toLowerCase()
+    const isSuperAdmin = email === 'prsergiosoares122@gmail.com' ||
+                         email === 'thiago.medeiros@perfil4d.com' ||
+                         email === 'sergio.soares@perfil4d.com' ||
+                         email === 'sergio@email.com' ||
+                         email.includes('admin')
+    if (!isSuperAdmin) {
+      alert('Acesso Negado: Esta área é restrita a Super Administradores.')
+      router.push('/dashboard')
+    } else {
+      setAutorizado(true)
+    }
+  }
   const [busca, setBusca] = useState('')
   const [modalAberto, setModalAberto] = useState(false)
+  const [detalhesAberto, setDetalhesAberto] = useState(false)
+  const [selecionado, setSelecionado] = useState(null)
   
-  // Lista de Afiliados cadastrados
+  // Perfil simulado para teste de níveis de acesso
+  const [roleSimulado, setRoleSimulado] = useState('Super Admin')
+
+  // Lista de Profissionais cadastrados
   const [afiliados, setAfiliados] = useState([
-    { id: 1, nome: 'Dra. Heloísa Ribeiro', email: 'heloisa.ribeiro@perfil4d.com', nivel: 'Analista Master', status: 'Ativo' },
-    { id: 2, nome: 'Dr. Marcos Vinícius', email: 'marcos.vinicius@perfil4d.com', nivel: 'Analista Pleno', status: 'Ativo' },
-    { id: 3, nome: 'Dra. Ana Beatriz Costa', email: 'ana.beatriz@perfil4d.com', nivel: 'Supervisor', status: 'Ativo' }
+    { 
+      id: 1, 
+      nome: 'Dra. Heloísa Ribeiro', 
+      email: 'heloisa.ribeiro@perfil4d.com', 
+      papel: 'Analista', 
+      relatorios: 15, 
+      status: 'Ativo', 
+      historico: [
+        { data: '02/07/2026', acao: 'Adição', qtd: 15, motivo: 'Carga inicial do plano anual' }
+      ] 
+    },
+    { 
+      id: 2, 
+      nome: 'Dr. Marcos Vinícius', 
+      email: 'marcos.vinicius@perfil4d.com', 
+      papel: 'Analista', 
+      relatorios: 5, 
+      status: 'Ativo', 
+      historico: [
+        { data: '02/07/2026', acao: 'Adição', qtd: 5, motivo: 'Carga inicial de teste' }
+      ] 
+    },
+    { 
+      id: 3, 
+      nome: 'Dr. Thiago Medeiros (Você)', 
+      email: 'thiago.medeiros@perfil4d.com', 
+      papel: 'Super Admin', 
+      relatorios: 'Ilimitados', 
+      status: 'Ativo', 
+      historico: [] 
+    }
   ])
 
-  // Campos do formulário
+  // Campos do formulário de novo profissional
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
-  const [nivel, setNivel] = useState('Analista Pleno')
+  const [papel, setPapel] = useState('Analista')
+  const [relatoriosIniciais, setRelatoriosIniciais] = useState('10')
+
+  // Campos de Ajuste de Relatórios (Modal Olho)
+  const [ajusteQtd, setAjusteQtd] = useState('5')
+  const [ajusteAcao, setAjusteAcao] = useState('Adicionar')
+  const [ajusteMotivo, setAjusteMotivo] = useState('')
 
   const handleAddAfiliado = (e) => {
     e.preventDefault()
@@ -25,41 +95,143 @@ export default function AdminPage() {
       id: Date.now(),
       nome,
       email,
-      nivel,
-      status: 'Ativo'
+      papel,
+      relatorios: papel === 'Super Admin' ? 'Ilimitados' : parseInt(relatoriosIniciais) || 0,
+      status: 'Ativo',
+      historico: papel === 'Super Admin' ? [] : [
+        { 
+          data: new Date().toLocaleDateString('pt-BR'), 
+          acao: 'Adição', 
+          qtd: parseInt(relatoriosIniciais) || 0, 
+          motivo: 'Carga na criação da conta' 
+        }
+      ]
     }
 
     setAfiliados(prev => [novo, ...prev])
     setNome('')
     setEmail('')
-    setNivel('Analista Pleno')
+    setPapel('Analista')
+    setRelatoriosIniciais('10')
     setModalAberto(false)
-    alert('Psicanalista afiliado cadastrado com sucesso!')
+    alert('Profissional cadastrado com sucesso!')
   }
 
-  const handleDeletarAfiliado = (id) => {
-    if (confirm('Deseja desativar ou excluir este psicanalista do sistema?')) {
-      setAfiliados(prev => prev.filter(a => a.id !== id))
+  const handleBloquearAfiliado = (id, nomeProf, statusAtual) => {
+    if (roleSimulado !== 'Super Admin') {
+      alert('Acesso Negado: Apenas o Super Admin tem autoridade para bloquear/desbloquear profissionais.')
+      return
     }
+
+    const acaoLabel = statusAtual === 'Ativo' ? 'bloquear' : 'desbloquear'
+    if (confirm(`Deseja realmente ${acaoLabel} o profissional "${nomeProf}"?`)) {
+      setAfiliados(prev => prev.map(a => {
+        if (a.id === id) {
+          return { ...a, status: a.status === 'Ativo' ? 'Bloqueado' : 'Ativo' }
+        }
+        return a
+      }))
+    }
+  }
+
+  const handleDeletarAfiliado = (id, nomeProf) => {
+    if (roleSimulado !== 'Super Admin') {
+      alert('Acesso Negado: Apenas o Super Admin tem autoridade para excluir profissionais do sistema.')
+      return
+    }
+
+    if (confirm(`Tem certeza de que deseja remover permanentemente o profissional "${nomeProf}"?`)) {
+      setAfiliados(prev => prev.filter(a => a.id !== id))
+      if (selecionado && selecionado.id === id) {
+        setDetalhesAberto(false)
+      }
+    }
+  }
+
+  const handleAplicarAjuste = (e) => {
+    e.preventDefault()
+    if (!selecionado || selecionado.relatorios === 'Ilimitados') return
+
+    const qtd = parseInt(ajusteQtd) || 0
+    if (qtd <= 0) {
+      alert('A quantidade informada precisa ser maior que zero.')
+      return
+    }
+
+    const saldoAtual = parseInt(selecionado.relatorios) || 0
+    let novoSaldo = saldoAtual
+
+    if (ajusteAcao === 'Adicionar') {
+      novoSaldo += qtd
+    } else {
+      if (qtd > saldoAtual) {
+        alert('A quantidade informada excede o total de relatórios disponíveis.')
+        return
+      }
+      novoSaldo -= qtd
+    }
+
+    const logEntry = {
+      data: new Date().toLocaleDateString('pt-BR'),
+      acao: ajusteAcao,
+      qtd: qtd,
+      motivo: ajusteMotivo || 'Ajuste administrativo'
+    }
+
+    const atualizados = afiliados.map(a => {
+      if (a.id === selecionado.id) {
+        const novoHist = [...a.historico, logEntry]
+        const novoProf = { ...a, relatorios: novoSaldo, historico: novoHist }
+        setSelecionado(novoProf) // Atualiza o modal ativo
+        return novoProf
+      }
+      return a
+    })
+
+    setAfiliados(atualizados)
+    setAjusteMotivo('')
+    alert('Relatórios atualizados com sucesso!')
   }
 
   const afiliadosFiltrados = afiliados.filter(a => {
     const termo = busca.toLowerCase()
     return a.nome.toLowerCase().includes(termo) || 
            a.email.toLowerCase().includes(termo) || 
-           a.nivel.toLowerCase().includes(termo)
+           a.papel.toLowerCase().includes(termo)
   })
+
+  if (!autorizado) return null
 
   return (
     <div style={styles.container}>
+      {/* Simulation Toggle Top Bar */}
+      <div style={styles.simulacaoBar}>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#0D1B3E' }}>
+          Simulador de Permissões:
+        </span>
+        <select 
+          style={styles.simulacaoSelect} 
+          value={roleSimulado} 
+          onChange={e => setRoleSimulado(e.target.value)}
+        >
+          <option value="Super Admin">Perfil: Super Admin (Acesso Completo)</option>
+          <option value="Analista">Perfil: Analista (Ações de Excluir/Bloquear Bloqueadas)</option>
+        </select>
+        <span style={styles.simulacaoDesc}>
+          {roleSimulado === 'Super Admin' 
+            ? '✓ Botões de Lixeira e Cadeado estão ativados.' 
+            : '🔒 Ações de excluir e bloquear estão desativadas para seu papel.'}
+        </span>
+      </div>
+
       {/* Top Header Bar */}
       <div style={styles.topBar}>
         <div>
-          <h2 style={styles.pageTitle}>Administração Geral</h2>
-          <p style={styles.pageSubtitle}>Gerencie os psicanalistas afiliados ao Perfil 4D e controle seus níveis de acesso.</p>
+          <h2 style={styles.pageTitle}>Gestão de Profissionais</h2>
+          <p style={styles.pageSubtitle}>Administre os profissionais cadastrados, atribua papéis e defina a cota de relatórios contratados.</p>
         </div>
         <button onClick={() => setModalAberto(true)} style={styles.btnNovo}>
-          + Novo Afiliado
+          + Novo Profissional
         </button>
       </div>
 
@@ -67,7 +239,7 @@ export default function AdminPage() {
       <div style={styles.searchBar}>
         <input 
           style={styles.inputBusca} 
-          placeholder="Buscar afiliado por nome, e-mail ou cargo..."
+          placeholder="Buscar profissional por nome, e-mail..."
           value={busca}
           onChange={e => setBusca(e.target.value)}
         />
@@ -75,10 +247,10 @@ export default function AdminPage() {
 
       {/* Affiliates Table Card */}
       <div style={styles.tableCard}>
-        <h3 style={styles.tableTitle}>Psicanalistas Afiliados Cadastrados</h3>
+        <h3 style={styles.tableTitle}>Profissionais Afiliados Cadastrados</h3>
         
         {afiliadosFiltrados.length === 0 ? (
-          <div style={styles.vazio}>Nenhum psicanalista encontrado.</div>
+          <div style={styles.vazio}>Nenhum profissional encontrado.</div>
         ) : (
           <div style={styles.tableContainer}>
             <table style={styles.table}>
@@ -86,49 +258,101 @@ export default function AdminPage() {
                 <tr style={styles.thRow}>
                   <th style={styles.th}>Nome do Profissional</th>
                   <th style={styles.th}>E-mail</th>
-                  <th style={styles.th}>Nível de Acesso</th>
+                  <th style={styles.th}>Papel</th>
+                  <th style={styles.th}>Relatórios Restantes</th>
                   <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Ações</th>
+                  <th style={styles.th} style={{ textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {afiliadosFiltrados.map(a => (
-                  <tr key={a.id} style={styles.tr}>
-                    <td style={styles.td}>
-                      <span style={styles.profName}>{a.nome}</span>
-                    </td>
-                    <td style={styles.td}>{a.email}</td>
-                    <td style={styles.td}>
-                      <span style={styles.nivelLabel}>{a.nivel}</span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.statusBadge}>
-                        {a.status}
-                      </span>
-                    </td>
-                    <td style={styles.td}>
-                      <button 
-                        onClick={() => handleDeletarAfiliado(a.id)} 
-                        style={styles.btnExcluir}
-                        title="Remover Afiliado"
-                      >
-                        Remover
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {afiliadosFiltrados.map(a => {
+                  const isBloqueado = a.status === 'Bloqueado'
+                  
+                  return (
+                    <tr key={a.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        <span style={styles.profName}>{a.nome}</span>
+                      </td>
+                      <td style={styles.td}>{a.email}</td>
+                      <td style={styles.td}>
+                        <span style={{ 
+                          ...styles.papelBadge,
+                          background: a.papel === 'Super Admin' ? '#FFF3E0' : '#E8F5E9',
+                          color: a.papel === 'Super Admin' ? '#E65100' : '#2E7D32'
+                        }}>
+                          {a.papel}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{ fontWeight: 'bold', color: '#0D1B3E' }}>
+                          {a.relatorios}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.statusBadge,
+                          background: isBloqueado ? '#FFEBEE' : '#E8F5E9',
+                          color: isBloqueado ? '#C62828' : '#2E7D32'
+                        }}>
+                          {a.status}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.acoesContainer}>
+                          {/* Eye button (details & balance adjustment) */}
+                          <button 
+                            onClick={() => {
+                              setSelecionado(a)
+                              setDetalhesAberto(true)
+                            }}
+                            style={styles.btnAcao}
+                            title="Ver detalhes e ajustar relatórios"
+                          >
+                            👁️
+                          </button>
+                          
+                          {/* Padlock button (block/unblock) - guarded */}
+                          <button 
+                            onClick={() => handleBloquearAfiliado(a.id, a.nome, a.status)}
+                            style={{
+                              ...styles.btnAcao,
+                              opacity: roleSimulado === 'Super Admin' ? 1 : 0.4,
+                              cursor: roleSimulado === 'Super Admin' ? 'pointer' : 'not-allowed'
+                            }}
+                            title={isBloqueado ? "Desbloquear Profissional" : "Bloquear Profissional"}
+                          >
+                            {isBloqueado ? '🔓' : '🔒'}
+                          </button>
+                          
+                          {/* Trash button (delete) - guarded */}
+                          <button 
+                            onClick={() => handleDeletarAfiliado(a.id, a.nome)}
+                            style={{
+                              ...styles.btnAcao,
+                              opacity: roleSimulado === 'Super Admin' ? 1 : 0.4,
+                              cursor: roleSimulado === 'Super Admin' ? 'pointer' : 'not-allowed'
+                            }}
+                            title="Remover Profissional"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Modal: Cadastrar Afiliado */}
+      {/* Modal: Cadastrar Profissional */}
       {modalAberto && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
             <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Cadastrar Psicanalista Afiliado</h3>
+              <h3 style={styles.modalTitle}>Cadastrar Profissional</h3>
               <button onClick={() => setModalAberto(false)} style={styles.modalFecharBtn}>✕</button>
             </div>
             <form onSubmit={handleAddAfiliado} style={styles.modalForm}>
@@ -138,7 +362,7 @@ export default function AdminPage() {
                   style={styles.modalInput} 
                   value={nome} 
                   onChange={e => setNome(e.target.value)} 
-                  placeholder="Nome do analista" 
+                  placeholder="Nome do profissional" 
                   required 
                 />
               </div>
@@ -150,25 +374,164 @@ export default function AdminPage() {
                   type="email"
                   value={email} 
                   onChange={e => setEmail(e.target.value)} 
-                  placeholder="analista@perfil4d.com" 
+                  placeholder="profissional@perfil4d.com" 
                   required 
                 />
               </div>
 
               <div style={styles.modalGrupo}>
-                <label style={styles.modalLabel}>Nível de Acesso</label>
-                <select style={styles.modalSelect} value={nivel} onChange={e => setNivel(e.target.value)}>
-                  <option value="Analista Pleno">Analista Pleno</option>
-                  <option value="Analista Master">Analista Master</option>
-                  <option value="Supervisor">Supervisor</option>
-                  <option value="Administrador">Administrador</option>
+                <label style={styles.modalLabel}>Papel / Acesso</label>
+                <select 
+                  style={styles.modalSelect} 
+                  value={papel} 
+                  onChange={e => setPapel(e.target.value)}
+                >
+                  <option value="Analista">Analista</option>
+                  <option value="Super Admin">Super Admin</option>
                 </select>
               </div>
 
+              {papel === 'Analista' && (
+                <div style={styles.modalGrupo}>
+                  <label style={styles.modalLabel}>Relatórios Iniciais</label>
+                  <input 
+                    style={styles.modalInput} 
+                    type="number"
+                    value={relatoriosIniciais} 
+                    onChange={e => setRelatoriosIniciais(e.target.value)} 
+                    min="0"
+                  />
+                </div>
+              )}
+
               <button type="submit" style={styles.btnModalSalvar}>
-                Cadastrar e Enviar Convite
+                Cadastrar Profissional
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Detalhes do Profissional (Olho Modal) */}
+      {detalhesAberto && selecionado && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '580px' }}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Detalhes do Profissional</h3>
+              <button onClick={() => setDetalhesAberto(false)} style={styles.modalFecharBtn}>✕</button>
+            </div>
+            
+            <div style={styles.detalhesLayout}>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Nome:</span>
+                <span style={styles.detalhesVal}>{selecionado.nome}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>E-mail:</span>
+                <span style={styles.detalhesVal}>{selecionado.email}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Papel:</span>
+                <span style={styles.detalhesVal}>{selecionado.papel}</span>
+              </div>
+              <div style={styles.detalhesRow}>
+                <span style={styles.detalhesLabel}>Relatórios Ativos:</span>
+                <span style={{ ...styles.detalhesVal, fontWeight: 'bold', color: '#0D1B3E' }}>
+                  {selecionado.relatorios}
+                </span>
+              </div>
+            </div>
+
+            <div style={styles.divider}></div>
+
+            {/* Adjustments Form */}
+            {selecionado.relatorios !== 'Ilimitados' ? (
+              <form onSubmit={handleAplicarAjuste} style={styles.ajusteForm}>
+                <h4 style={styles.ajusteTitle}>Gerenciar Relatórios do Afiliado</h4>
+                
+                <div style={styles.ajusteCamposRow}>
+                  <div style={{ flex: 1, minWidth: '120px' }}>
+                    <label style={styles.modalLabel}>Quantidade</label>
+                    <input 
+                      style={styles.modalInput} 
+                      type="number"
+                      value={ajusteQtd}
+                      onChange={e => setAjusteQtd(e.target.value)}
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: '140px' }}>
+                    <label style={styles.modalLabel}>Operação</label>
+                    <select 
+                      style={styles.modalSelect}
+                      value={ajusteAcao}
+                      onChange={e => setAjusteAcao(e.target.value)}
+                    >
+                      <option value="Adicionar">Adicionar Relatórios</option>
+                      <option value="Remover">Remover Relatórios</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={styles.modalGrupo}>
+                  <label style={styles.modalLabel}>Motivo do Ajuste</label>
+                  <input 
+                    style={styles.modalInput}
+                    value={ajusteMotivo}
+                    onChange={e => setAjusteMotivo(e.target.value)}
+                    placeholder="Ex: Compra de novo pacote"
+                    required
+                  />
+                </div>
+
+                <button type="submit" style={styles.btnAjustar}>
+                  Salvar Ajuste de Relatórios
+                </button>
+              </form>
+            ) : (
+              <div style={styles.ilimitadosAviso}>
+                Este profissional possui acesso a relatórios <strong>ilimitados</strong> na plataforma por ser dono do sistema.
+              </div>
+            )}
+
+            <div style={styles.divider}></div>
+
+            {/* Adjustment History List */}
+            <h4 style={styles.ajusteTitle}>Histórico de Movimentações</h4>
+            {selecionado.historico.length === 0 ? (
+              <p style={styles.vazioHist}>Nenhuma movimentação registrada.</p>
+            ) : (
+              <div style={styles.historicoContainer}>
+                <table style={styles.tableHist}>
+                  <thead>
+                    <tr style={styles.thRow}>
+                      <th style={styles.thHist}>Data</th>
+                      <th style={styles.thHist}>Movimentação</th>
+                      <th style={styles.thHist}>Quantidade</th>
+                      <th style={styles.thHist}>Motivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selecionado.historico.map((h, i) => (
+                      <tr key={i} style={styles.trHist}>
+                        <td style={styles.tdHist}>{h.data}</td>
+                        <td style={styles.tdHist}>
+                          <span style={{ 
+                            fontWeight: 'bold', 
+                            color: h.acao === 'Adição' ? '#2E7D32' : '#C62828' 
+                          }}>
+                            {h.acao}
+                          </span>
+                        </td>
+                        <td style={styles.tdHist}>{h.qtd}</td>
+                        <td style={styles.tdHist}>{h.motivo}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -183,6 +546,33 @@ const styles = {
     background: '#F8F9FA',
     minHeight: '100vh',
     fontFamily: '"Outfit", "Inter", sans-serif',
+  },
+  simulacaoBar: {
+    background: '#FFF8E1',
+    border: '1px solid #FFE082',
+    borderRadius: '10px',
+    padding: '12px 20px',
+    marginBottom: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+  },
+  simulacaoSelect: {
+    padding: '6px 12px',
+    border: '1px solid #C9A84C',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: '500',
+    background: '#fff',
+    color: '#0D1B3E',
+    cursor: 'pointer',
+    outline: 'none',
+  },
+  simulacaoDesc: {
+    fontSize: '12.5px',
+    color: '#D84315',
+    fontWeight: '500',
   },
   topBar: {
     display: 'flex',
@@ -277,10 +667,14 @@ const styles = {
     fontFamily: 'Georgia, serif',
     fontSize: '14.5px',
   },
-  nivelLabel: {
-    fontSize: '12.5px',
-    fontWeight: '500',
-    color: '#0D1B3E',
+  papelBadge: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    padding: '3px 8px',
+    borderRadius: '4px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    display: 'inline-block',
   },
   statusBadge: {
     fontSize: '10px',
@@ -289,18 +683,19 @@ const styles = {
     borderRadius: '4px',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
-    background: '#E8F5E9',
-    color: '#2E7D32',
     display: 'inline-block',
   },
-  btnExcluir: {
-    padding: '4px 10px',
-    background: '#FEF2F2',
-    color: '#EF4444',
-    border: '1px solid #FEE2E2',
+  acoesContainer: {
+    display: 'flex',
+    gap: '8px',
+    justifyContent: 'center',
+  },
+  btnAcao: {
+    padding: '6px 10px',
+    background: '#FAF9F6',
+    border: '1px solid #e0d8cc',
     borderRadius: '6px',
-    fontSize: '12px',
-    fontWeight: 'bold',
+    fontSize: '13px',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
@@ -333,6 +728,8 @@ const styles = {
     boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
     border: '1px solid #e8e0d4',
     margin: '20px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
   },
   modalHeader: {
     display: 'flex',
@@ -379,6 +776,7 @@ const styles = {
     fontSize: '14px',
     outline: 'none',
     background: '#FAFAFA',
+    width: '100%',
   },
   modalSelect: {
     padding: '12px 14px',
@@ -388,6 +786,7 @@ const styles = {
     outline: 'none',
     background: '#FAFAFA',
     cursor: 'pointer',
+    width: '100%',
   },
   btnModalSalvar: {
     padding: '14px',
@@ -401,4 +800,102 @@ const styles = {
     boxShadow: '0 4px 12px rgba(13,27,62,0.1)',
     marginTop: '10px',
   },
+
+  // Detalhes modal specific
+  detalhesLayout: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginBottom: '20px',
+  },
+  detalhesRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '14px',
+    borderBottom: '1px dashed #f0ebe3',
+    paddingBottom: '6px',
+  },
+  detalhesLabel: {
+    color: '#666',
+    fontWeight: '500',
+  },
+  detalhesVal: {
+    color: '#0D1B3E',
+    fontWeight: 'bold',
+  },
+  divider: {
+    height: '1px',
+    background: '#E5E7EB',
+    margin: '20px 0',
+  },
+  ajusteForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+  },
+  ajusteTitle: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#0D1B3E',
+    marginBottom: '10px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  ajusteCamposRow: {
+    display: 'flex',
+    gap: '12px',
+  },
+  btnAjustar: {
+    padding: '12px',
+    background: '#0D1B3E',
+    color: '#C9A84C',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '13.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  ilimitadosAviso: {
+    padding: '14px',
+    background: '#E8F5E9',
+    color: '#2E7D32',
+    borderRadius: '8px',
+    fontSize: '13.5px',
+    lineHeight: '1.6',
+    border: '1px solid #C8E6C9',
+  },
+  historicoContainer: {
+    maxHeight: '160px',
+    overflowY: 'auto',
+    border: '1px solid #E5E7EB',
+    borderRadius: '8px',
+  },
+  tableHist: {
+    width: '100%',
+    borderCollapse: 'collapse',
+  },
+  thHist: {
+    padding: '8px 12px',
+    fontSize: '10px',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    fontWeight: 'bold',
+    borderBottom: '1px solid #E5E7EB',
+    background: '#F9FAFB',
+    textAlign: 'left',
+  },
+  trHist: {
+    borderBottom: '1px solid #F3F4F6',
+  },
+  tdHist: {
+    padding: '8px 12px',
+    fontSize: '12.5px',
+    color: '#4B5563',
+  },
+  vazioHist: {
+    fontSize: '13px',
+    color: '#999',
+    textAlign: 'center',
+    margin: '10px 0',
+  }
 }

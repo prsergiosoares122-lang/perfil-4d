@@ -9,7 +9,7 @@ export default function PerguntasPage() {
   const [loading, setLoading] = useState(true)
   const [avisoSucesso, setAvisoSucesso] = useState('')
   const [editando, setEditando] = useState(null) // { numero, texto }
-  const [salvandoId, setSalvandoId] = useState(null)
+  const [autorizado, setAutorizado] = useState(false)
 
   useEffect(() => {
     verificarAuth()
@@ -17,8 +17,26 @@ export default function PerguntasPage() {
   }, [])
 
   async function verificarAuth() {
+    if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('code='))) {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) router.push('/login')
+    if (!session) {
+      router.push('/login')
+      return
+    }
+    const email = session.user.email.toLowerCase()
+    const isSuperAdmin = email === 'prsergiosoares122@gmail.com' ||
+                         email === 'thiago.medeiros@perfil4d.com' ||
+                         email === 'sergio.soares@perfil4d.com' ||
+                         email === 'sergio@email.com' ||
+                         email.includes('admin')
+    if (!isSuperAdmin) {
+      alert('Acesso Negado: Esta área é restrita a Super Administradores.')
+      router.push('/dashboard')
+    } else {
+      setAutorizado(true)
+    }
   }
 
   async function carregarPerguntas() {
@@ -84,6 +102,8 @@ export default function PerguntasPage() {
     { key: 'sinergia', nome: 'Sinergia' },
     { key: 'sexualidade', nome: 'Sexualidade Afetiva' }
   ]
+
+  if (!autorizado) return null
 
   return (
     <div style={styles.container}>

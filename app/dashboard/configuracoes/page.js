@@ -7,8 +7,18 @@ export default function ConfiguracoesPage() {
   const [avisoSucesso, setAvisoSucesso] = useState('')
 
   // Form Perfil
-  const [nome, setNome] = useState('Psicanalista Sérgio Soares')
+  const [nome, setNome] = useState('Sérgio Soares')
+  const [funcao, setFuncao] = useState('Psicanalista')
   const [email, setEmail] = useState('sergio.soares@perfil4d.com')
+
+  useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedNome = localStorage.getItem('perfil4d_perfil_nome')
+      const savedFuncao = localStorage.getItem('perfil4d_perfil_funcao')
+      if (savedNome) setNome(savedNome)
+      if (savedFuncao) setFuncao(savedFuncao)
+    }
+  })
 
   // Form Segurança
   const [senhaAtual, setSenhaAtual] = useState('')
@@ -29,6 +39,12 @@ export default function ConfiguracoesPage() {
   const salvarPerfil = (e) => {
     e.preventDefault()
     setLoading(true)
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('perfil4d_perfil_nome', nome)
+      localStorage.setItem('perfil4d_perfil_funcao', funcao)
+    }
+
     setTimeout(() => {
       setLoading(false)
       dispararSucesso('Dados do perfil atualizados com sucesso!')
@@ -129,6 +145,24 @@ export default function ConfiguracoesPage() {
                 />
               </div>
               <div style={styles.formCol}>
+                <label style={styles.label}>Função Profissional</label>
+                <select 
+                  style={styles.select} 
+                  value={funcao} 
+                  onChange={e => setFuncao(e.target.value)}
+                  required 
+                >
+                  <option value="Analista">Analista</option>
+                  <option value="Psicanalista">Psicanalista</option>
+                  <option value="Psicólogo">Psicólogo</option>
+                  <option value="Terapeuta">Terapeuta</option>
+                  <option value="Terapeuta Familiar">Terapeuta Familiar</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={styles.formRow}>
+              <div style={styles.formCol}>
                 <label style={styles.label}>E-mail de Contato</label>
                 <input 
                   style={styles.input} 
@@ -138,6 +172,7 @@ export default function ConfiguracoesPage() {
                   required 
                 />
               </div>
+              <div style={styles.formCol}></div>
             </div>
 
             <button type="submit" disabled={loading} style={styles.btnSalvar}>
@@ -381,6 +416,15 @@ const styles = {
     fontSize: '14px',
     outline: 'none',
     background: '#FAFAFA',
+  },
+  select: {
+    padding: '12px 16px',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    background: '#FAFAFA',
+    cursor: 'pointer',
   },
   btnSalvar: {
     padding: '14px 28px',

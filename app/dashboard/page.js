@@ -48,6 +48,9 @@ export default function Dashboard() {
   }, [])
 
   async function verificarAuth() {
+    if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('code='))) {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) router.push('/login')
   }
@@ -348,7 +351,7 @@ export default function Dashboard() {
           <span style={{ ...styles.metricValue, color: '#2E7D32' }}>{prontosDevolutiva}</span>
         </div>
         <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Créditos restantes</span>
+          <span style={styles.metricLabel}>Relatórios restantes</span>
           <span style={{ ...styles.metricValue, color: '#0D1B3E' }}>{creditosRestantes}</span>
         </div>
         <div style={styles.metricCard}>
@@ -384,8 +387,7 @@ export default function Dashboard() {
             </div>
             
             <div style={styles.exportGroup}>
-              <button onClick={exportarCSV} style={styles.btnActionSecundario}>CSV</button>
-              <button onClick={exportarPDF} style={styles.btnActionSecundario}>PDF</button>
+              {/* Espaço reservado para uso futuro */}
             </div>
           </div>
 

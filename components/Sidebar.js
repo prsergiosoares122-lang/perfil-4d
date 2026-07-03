@@ -7,6 +7,27 @@ export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
 
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
+  useEffect(() => {
+    checarRole()
+  }, [])
+
+  async function checarRole() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session && session.user) {
+      const email = session.user.email.toLowerCase()
+      if (
+        email === 'prsergiosoares122@gmail.com' ||
+        email === 'thiago.medeiros@perfil4d.com' ||
+        email === 'sergio@email.com' ||
+        email.includes('admin')
+      ) {
+        setIsSuperAdmin(true)
+      }
+    }
+  }
+
   const menuItems = [
     { label: 'Painel', path: '/dashboard/painel' },
     { label: 'Casais', path: '/dashboard' },
@@ -16,8 +37,10 @@ export default function Sidebar() {
     { label: 'Cursos', path: '/dashboard/cursos' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
     { label: 'Relatórios', path: '/dashboard/relatorios' },
-    { label: 'Perguntas', path: '/dashboard/perguntas' },
-    { label: 'Admin', path: '/dashboard/admin' },
+    ...(isSuperAdmin ? [
+      { label: 'Perguntas', path: '/dashboard/perguntas' },
+      { label: 'Admin', path: '/dashboard/admin' }
+    ] : [])
   ]
 
   async function sair() {
