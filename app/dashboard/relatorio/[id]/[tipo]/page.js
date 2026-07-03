@@ -12,6 +12,10 @@ export default function RelatorioPage() {
   const [html, setHtml] = useState('')
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
+  const [casal, setCasal] = useState(null)
+  const [pctEsposo, setPctEsposo] = useState(null)
+  const [pctEsposa, setPctEsposa] = useState(null)
+  const [conjugeAtivo, setConjugeAtivo] = useState(tipo === 'esposa' ? 'esposa' : 'esposo')
 
   useEffect(() => { carregarRelatorio() }, [])
 
@@ -22,9 +26,10 @@ export default function RelatorioPage() {
       if (!session) { router.push('/login'); return }
 
       // Buscar casal
-      const { data: casal, error: e1 } = await supabase
+      const { data: casalData, error: e1 } = await supabase
         .from('casais').select('*').eq('id', id).single()
       if (e1) throw new Error('Casal não encontrado')
+      setCasal(casalData)
 
       // Buscar respostas
       const { data: respostas, error: e2 } = await supabase
@@ -40,17 +45,20 @@ export default function RelatorioPage() {
         return
       }
 
-      const pctEsposo = calcularPercentuais(respostasEsposo, 'esposo')
-      const pctEsposa = calcularPercentuais(respostasEsposa, 'esposa')
+      const pEsposo = calcularPercentuais(respostasEsposo, 'esposo')
+      const pEsposa = calcularPercentuais(respostasEsposa, 'esposa')
+      setPctEsposo(pEsposo)
+      setPctEsposa(pEsposa)
+
+      const inicial = tipo === 'esposa' ? 'esposa' : 'esposo'
+      setConjugeAtivo(inicial)
 
       let htmlGerado = ''
-      if (tipo === 'esposo') {
-        htmlGerado = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposo')
-      } else if (tipo === 'esposa') {
-        htmlGerado = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposa')
+      if (tipo === 'esposo' || tipo === 'esposa') {
+        htmlGerado = gerarRelatorioHTML(casalData, pEsposo, pEsposa, inicial)
       } else {
         // Consultor - relatório simples com os dois
-        htmlGerado = gerarRelatorioConsultor(casal, pctEsposo, pctEsposa)
+        htmlGerado = gerarRelatorioConsultor(casalData, pEsposo, pEsposa)
       }
 
       // Marcar como relatório gerado
@@ -63,12 +71,21 @@ export default function RelatorioPage() {
     setLoading(false)
   }
 
+  function handleTrocarConjuge(novoConjuge) {
+    if (!casal || !pctEsposo || !pctEsposa) return
+    setConjugeAtivo(novoConjuge)
+    const htmlGerado = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, novoConjuge)
+    setHtml(htmlGerado)
+    window.history.replaceState(null, '', `/dashboard/relatorio/${id}/${novoConjuge}`)
+  }
+
   function baixarHTML() {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `Perfil4D_${tipo}_${id.slice(0,8)}.html`
+    const suffix = tipo === 'esposo' || tipo === 'esposa' ? conjugeAtivo : 'consultor'
+    a.download = `Perfil4D_${suffix}_${id.slice(0,8)}.html`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -106,7 +123,60 @@ export default function RelatorioPage() {
           ↓ Baixar HTML
         </button>
       </div>
+
+      {/* Tabs selector bar */}
+      {(tipo === 'esposo' || tipo === 'esposa') && (
+        <div style={styles.tabsContainer}>
+          <button 
+            onClick={() => handleTrocarConjuge('esposo')}
+            style={{
+              ...styles.tabButton,
+              ...(conjugeAtivo === 'esposo' ? styles.tabButtonActive : {})
+            }}
+          >
+            👨 Esposo: {casal?.nome_esposo}
+          </button>
+          <button 
+            onClick={() => handleTrocarConjuge('esposa')}
+            style={{
+              ...styles.tabButton,
+              ...(conjugeAtivo === 'esposa' ? styles.tabButtonActive : {})
+            }}
+          >
+            👩 Esposa: {casal?.nome_esposa}
+          </button>
+        </div>
+      )}
+
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   )
+}
+
+const styles = {
+  tabsContainer: {
+    display: 'flex',
+    background: '#1A2A4D',
+    padding: '12px 20px',
+    gap: '12px',
+    borderBottom: '1px solid rgba(201, 168, 76, 0.2)',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  tabButton: {
+    padding: '10px 20px',
+    background: 'rgba(255, 255, 255, 0.05)',
+    color: 'rgba(255, 255, 255, 0.6)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '6px',
+    fontSize: '13.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  tabButtonActive: {
+    background: '#C9A84C',
+    color: '#0D1B3E',
+    borderColor: '#C9A84C',
+  }
 }

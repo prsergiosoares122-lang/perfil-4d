@@ -119,18 +119,40 @@ function QuestionarioContent() {
         throw new Error('Cadastro do casal não encontrado no sistema.')
       }
 
-      // Restaurar respostas salvas temporariamente no localStorage para este cônjuge deste casal
-      try {
-        const savedRespostas = localStorage.getItem(`perfil4d_respostas_${id}_${c}`)
-        if (savedRespostas) {
-          setRespostas(JSON.parse(savedRespostas))
+      // Verificar se este cônjuge já respondeu no banco de dados
+      const { data: respExistente } = await supabase
+        .from('respostas')
+        .select('id')
+        .eq('casal_id', id)
+        .eq('conjuge', c)
+        .maybeSingle()
+
+      if (respExistente) {
+        // Se já respondeu, pula para a tela de conclusão e verifica o status geral do outro cônjuge
+        const { data: todasRespostas } = await supabase
+          .from('respostas')
+          .select('conjuge')
+          .eq('casal_id', id)
+
+        const conjugesRespondidos = todasRespostas ? todasRespostas.map(r => r.conjuge) : []
+        const completes = conjugesRespondidos.includes('esposo') && conjugesRespondidos.includes('esposa')
+        
+        setIsCompleto(completes)
+        setEtapa('obrigado')
+      } else {
+        // Restaurar respostas salvas temporariamente no localStorage para este cônjuge deste casal
+        try {
+          const savedRespostas = localStorage.getItem(`perfil4d_respostas_${id}_${c}`)
+          if (savedRespostas) {
+            setRespostas(JSON.parse(savedRespostas))
+          }
+          const savedBloco = localStorage.getItem(`perfil4d_bloco_${id}_${c}`)
+          if (savedBloco) {
+            setBlocoAtual(Number(savedBloco))
+          }
+        } catch (storageErr) {
+          console.warn("Erro ao restaurar dados do localStorage:", storageErr)
         }
-        const savedBloco = localStorage.getItem(`perfil4d_bloco_${id}_${c}`)
-        if (savedBloco) {
-          setBlocoAtual(Number(savedBloco))
-        }
-      } catch (storageErr) {
-        console.warn("Erro ao restaurar dados do localStorage:", storageErr)
       }
     } catch (err) {
       console.error("Erro ao carregar dados do casal:", err)
@@ -210,23 +232,22 @@ function QuestionarioContent() {
       })
       if (errorRespostas) throw errorRespostas
 
-      // Obter o status atual do casal para saber se completa o questionário
-      const { data: casal, error: errorCasal } = await supabase
-        .from('casais')
-        .select('status')
-        .eq('id', casalId)
-        .single()
+      // Obter todas as respostas cadastradas para este casal no banco de dados para verificar completude
+      const { data: todasRespostas, error: errorTodas } = await supabase
+        .from('respostas')
+        .select('conjuge')
+        .eq('casal_id', casalId)
 
-      if (errorCasal) throw errorCasal
+      if (errorTodas) throw errorTodas
+
+      const conjugesRespondidos = todasRespostas ? todasRespostas.map(r => r.conjuge) : []
+      const completes = conjugesRespondidos.includes('esposo') && conjugesRespondidos.includes('esposa')
 
       let novoStatus = 'aguardando'
-      let completes = false
-      if (conjuge === 'esposo') {
-        completes = (casal.status === 'esposa_respondeu')
-        novoStatus = completes ? 'completo' : 'esposo_respondeu'
+      if (completes) {
+        novoStatus = 'completo'
       } else {
-        completes = (casal.status === 'esposo_respondeu')
-        novoStatus = completes ? 'completo' : 'esposa_respondeu'
+        novoStatus = conjuge === 'esposo' ? 'esposo_respondeu' : 'esposa_respondeu'
       }
 
       setIsCompleto(completes)
