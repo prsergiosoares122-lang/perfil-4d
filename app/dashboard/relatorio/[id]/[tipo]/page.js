@@ -16,8 +16,9 @@ export default function RelatorioPage() {
   const [pctEsposo, setPctEsposo] = useState(null)
   const [pctEsposa, setPctEsposa] = useState(null)
   const [conjugeAtivo, setConjugeAtivo] = useState(tipo === 'esposa' ? 'esposa' : 'esposo')
+  const [loadingPrint, setLoadingPrint] = useState(false)
 
-  useEffect(() => { carregarRelatorio() }, [])
+  useEffect(() => { carregarRelatorio() }, [id, tipo])
 
   async function carregarRelatorio() {
     try {
@@ -25,37 +26,43 @@ export default function RelatorioPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/login'); return }
 
-      // Buscar casal
-      const { data: casalData, error: e1 } = await supabase
-        .from('casais').select('*').eq('id', id).single()
-      if (e1) throw new Error('Casal não encontrado')
-      setCasal(casalData)
+      let casalData = casal
+      let pEsposo = pctEsposo
+      let pEsposa = pctEsposa
 
-      // Buscar respostas
-      const { data: respostas, error: e2 } = await supabase
-        .from('respostas').select('*').eq('casal_id', id)
-      if (e2) throw new Error('Respostas não encontradas')
+      if (!casalData || !pEsposo || !pEsposa) {
+        // Buscar casal
+        const { data: cData, error: e1 } = await supabase
+          .from('casais').select('*').eq('id', id).single()
+        if (e1) throw new Error('Casal não encontrado')
+        casalData = cData
+        setCasal(cData)
 
-      const respostasEsposo = respostas.find(r => r.conjuge === 'esposo')
-      const respostasEsposa = respostas.find(r => r.conjuge === 'esposa')
+        // Buscar respostas
+        const { data: respostas, error: e2 } = await supabase
+          .from('respostas').select('*').eq('casal_id', id)
+        if (e2) throw new Error('Respostas não encontradas')
 
-      if (!respostasEsposo || !respostasEsposa) {
-        setErro('Ainda não há respostas completas dos dois cônjuges.')
-        setLoading(false)
-        return
+        const respostasEsposo = respostas.find(r => r.conjuge === 'esposo')
+        const respostasEsposa = respostas.find(r => r.conjuge === 'esposa')
+
+        if (!respostasEsposo || !respostasEsposa) {
+          setErro('Ainda não há respostas completas dos dois cônjuges.')
+          setLoading(false)
+          return
+        }
+
+        pEsposo = calcularPercentuais(respostasEsposo, 'esposo')
+        pEsposa = calcularPercentuais(respostasEsposa, 'esposa')
+        setPctEsposo(pEsposo)
+        setPctEsposa(pEsposa)
       }
 
-      const pEsposo = calcularPercentuais(respostasEsposo, 'esposo')
-      const pEsposa = calcularPercentuais(respostasEsposa, 'esposa')
-      setPctEsposo(pEsposo)
-      setPctEsposa(pEsposa)
-
-      const inicial = tipo === 'esposa' ? 'esposa' : 'esposo'
-      setConjugeAtivo(inicial)
+      setConjugeAtivo(tipo)
 
       let htmlGerado = ''
       if (tipo === 'esposo' || tipo === 'esposa') {
-        htmlGerado = gerarRelatorioHTML(casalData, pEsposo, pEsposa, inicial)
+        htmlGerado = gerarRelatorioHTML(casalData, pEsposo, pEsposa, tipo)
       } else {
         // Consultor - relatório simples com os dois
         htmlGerado = gerarRelatorioConsultor(casalData, pEsposo, pEsposa)
@@ -72,22 +79,50 @@ export default function RelatorioPage() {
   }
 
   function handleTrocarConjuge(novoConjuge) {
-    if (!casal || !pctEsposo || !pctEsposa) return
-    setConjugeAtivo(novoConjuge)
-    const htmlGerado = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, novoConjuge)
-    setHtml(htmlGerado)
-    window.history.replaceState(null, '', `/dashboard/relatorio/${id}/${novoConjuge}`)
+    router.replace(`/dashboard/relatorio/${id}/${novoConjuge}`)
   }
 
-  function baixarHTML() {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const suffix = tipo === 'esposo' || tipo === 'esposa' ? conjugeAtivo : 'consultor'
-    a.download = `Perfil4D_${suffix}_${id.slice(0,8)}.html`
-    a.click()
-    URL.revokeObjectURL(url)
+  async function handleDownloadPDF() {
+    if (!casal || !pctEsposo || !pctEsposa) return
+    setLoadingPrint(true)
+    try {
+      let htmlConteudo = ''
+      if (tipo === 'esposo' || tipo === 'esposa') {
+        htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, tipo)
+      } else {
+        htmlConteudo = gerarRelatorioConsultor(casal, pctEsposo, pctEsposa)
+      }
+
+      const tempDiv = document.createElement('div')
+      tempDiv.style.position = 'absolute'
+      tempDiv.style.left = '-9999px'
+      tempDiv.style.width = '800px'
+      tempDiv.innerHTML = htmlConteudo
+      document.body.appendChild(tempDiv)
+
+      const { default: jsPDF } = await import('jspdf')
+      const html2canvas = (await import('html2canvas')).default
+
+      const doc = new jsPDF('p', 'pt', 'a4')
+      const suffix = tipo === 'esposo' || tipo === 'esposa' ? tipo : 'consultor'
+      const nomeC = suffix === 'esposo' ? casal.nome_esposo : casal.nome_esposa
+
+      await doc.html(tempDiv, {
+        callback: function (pdf) {
+          pdf.save(`Perfil4D_${suffix}_${nomeC.split(' ')[0]}.pdf`)
+          document.body.removeChild(tempDiv)
+          setLoadingPrint(false)
+        },
+        x: 0,
+        y: 0,
+        width: 595.28,
+        windowWidth: 800
+      })
+    } catch (e) {
+      console.error(e)
+      alert('Houve um problema ao gerar o PDF. Você pode usar as opções de impressão do navegador.')
+      setLoadingPrint(false)
+    }
   }
 
   if (loading) return (
@@ -118,35 +153,12 @@ export default function RelatorioPage() {
         <span style={{color:'#C9A84C',fontSize:13,fontWeight:'bold',textTransform:'uppercase',letterSpacing:1}}>
           Relatório — {tipo === 'esposo' ? 'Esposo' : tipo === 'esposa' ? 'Esposa' : 'Consultor'}
         </span>
-        <button onClick={baixarHTML}
+        <button onClick={handleDownloadPDF} disabled={loadingPrint}
           style={{padding:'8px 16px',background:'#C9A84C',color:'#0D1B3E',border:'none',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:'bold'}}>
-          ↓ Baixar HTML
+          {loadingPrint ? 'Gerando PDF...' : '↓ Exportar PDF'}
         </button>
       </div>
 
-      {/* Tabs selector bar */}
-      {(tipo === 'esposo' || tipo === 'esposa') && (
-        <div style={styles.tabsContainer}>
-          <button 
-            onClick={() => handleTrocarConjuge('esposo')}
-            style={{
-              ...styles.tabButton,
-              ...(conjugeAtivo === 'esposo' ? styles.tabButtonActive : {})
-            }}
-          >
-            👨 Esposo: {casal?.nome_esposo}
-          </button>
-          <button 
-            onClick={() => handleTrocarConjuge('esposa')}
-            style={{
-              ...styles.tabButton,
-              ...(conjugeAtivo === 'esposa' ? styles.tabButtonActive : {})
-            }}
-          >
-            👩 Esposa: {casal?.nome_esposa}
-          </button>
-        </div>
-      )}
 
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>

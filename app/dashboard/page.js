@@ -630,24 +630,11 @@ export default function Dashboard() {
                     <div style={styles.spouseActionGroup}>
                       <button 
                         type="button" 
-                        onClick={() => copiarLink(getLinks(modalCasal).esposo, 'Link do Esposo')} 
+                        onClick={() => { setModalAberto(false); router.push(`/dashboard/relatorio/${modalCasal.id}/esposo`); }} 
                         style={styles.btnActionSpouse}
                       >
-                        Copiar Link de Avaliação
+                        Perfil Individual
                       </button>
-                      
-                      <div style={styles.pinWrapper}>
-                        <span style={styles.pinLabel}>PIN de acesso:</span>
-                        <span style={styles.pinValue}>{obterPin(modalCasal.id, 'esposo')}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => copiarLink(obterPin(modalCasal.id, 'esposo'), 'PIN do Esposo')} 
-                          style={styles.btnCopyIcon}
-                          title="Copiar PIN"
-                        >
-                          📋
-                        </button>
-                      </div>
                     </div>
                   </div>
 
@@ -659,36 +646,17 @@ export default function Dashboard() {
                     <div style={styles.spouseActionGroup}>
                       <button 
                         type="button" 
-                        onClick={() => copiarLink(getLinks(modalCasal).esposa, 'Link da Esposa')} 
+                        onClick={() => { setModalAberto(false); router.push(`/dashboard/relatorio/${modalCasal.id}/esposa`); }} 
                         style={styles.btnActionSpouse}
                       >
-                        Copiar Link de Avaliação
+                        Perfil Individual
                       </button>
-                      
-                      <div style={styles.pinWrapper}>
-                        <span style={styles.pinLabel}>PIN de acesso:</span>
-                        <span style={styles.pinValue}>{obterPin(modalCasal.id, 'esposa')}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => copiarLink(obterPin(modalCasal.id, 'esposa'), 'PIN da Esposa')} 
-                          style={styles.btnCopyIcon}
-                          title="Copiar PIN"
-                        >
-                          📋
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Ações Finais (Footer) */}
                 <div style={styles.modalFooterActions}>
-                  <button
-                    onClick={() => { setModalAberto(false); router.push(`/dashboard/relatorio/${modalCasal.id}/esposo`); }}
-                    style={styles.btnFooterNav}
-                  >
-                    Perfil Individual
-                  </button>
 
                   <button
                     onClick={() => { setModalAberto(false); router.push(`/relatorio-final?id=${modalCasal.id}`); }}
