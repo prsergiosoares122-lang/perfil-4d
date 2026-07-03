@@ -2,18 +2,20 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { calcularPercentuais } from '../../lib/perguntas'
 
 const STATUS_LABEL = {
-  aguardando: { texto: 'Aguardando Respostas', cor: '#E65100', bg: '#FFF8E1' },
-  esposo_respondeu: { texto: 'Esposo respondeu', cor: '#1565C0', bg: '#E3F2FD' },
-  esposa_respondeu: { texto: 'Esposa respondeu', cor: '#6A1B9A', bg: '#F3E8FC' },
-  completo: { texto: 'Completo', cor: '#2E7D32', bg: '#E8F5E9' },
-  relatorio_gerado: { texto: 'Relatório Gerado', cor: '#37474F', bg: '#ECEFF1' },
+  aguardando: { texto: 'AGUARDANDO', cor: '#E65100', bg: '#FFF8E1' },
+  esposo_respondeu: { texto: 'AGUARDANDO', cor: '#E65100', bg: '#FFF8E1' },
+  esposa_respondeu: { texto: 'AGUARDANDO', cor: '#E65100', bg: '#FFF8E1' },
+  completo: { texto: 'RELATÓRIOS PRONTOS', cor: '#2E7D32', bg: '#E8F5E9' },
+  relatorio_gerado: { texto: 'RELATÓRIOS PRONTOS', cor: '#2E7D32', bg: '#E8F5E9' },
 }
 
 export default function Dashboard() {
   const router = useRouter()
   const [casais, setCasais] = useState([])
+  const [respostas, setRespostas] = useState([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState('todos')
@@ -27,7 +29,7 @@ export default function Dashboard() {
 
   // Estados do Modal
   const [modalAberto, setModalAberto] = useState(false)
-  const [modalModo, setModalModo] = useState('criar') // criar | links
+  const [modalModo, setModalModo] = useState('criar') // criar | links | detalhes
   const [modalCasal, setModalCasal] = useState(null)
   const [linksGerados, setLinksGerados] = useState(null)
   
@@ -52,11 +54,22 @@ export default function Dashboard() {
 
   async function carregarCasais() {
     setLoading(true)
-    const { data, error } = await supabase
+    const { data: casaisData, error: errorCasais } = await supabase
       .from('casais')
       .select('*')
       .order('created_at', { ascending: false })
-    if (!error) setCasais(data || [])
+    
+    if (!errorCasais && casaisData) {
+      setCasais(casaisData)
+      
+      const { data: respostasData, error: errorRespostas } = await supabase
+        .from('respostas')
+        .select('*')
+      
+      if (!errorRespostas && respostasData) {
+        setRespostas(respostasData)
+      }
+    }
     setLoading(false)
   }
 
@@ -73,7 +86,9 @@ export default function Dashboard() {
     const matchBusca = !busca ||
       (c.nome_esposo && c.nome_esposo.toLowerCase().includes(termoBusca)) ||
       (c.nome_esposa && c.nome_esposa.toLowerCase().includes(termoBusca))
-    const matchFiltro = filtro === 'todos' || c.status === filtro
+    const matchFiltro = filtro === 'todos' || 
+      (filtro === 'aguardando' && (c.status === 'aguardando' || c.status === 'esposo_respondeu' || c.status === 'esposa_respondeu')) ||
+      (filtro === 'completo' && (c.status === 'completo' || c.status === 'relatorio_gerado'))
     return matchBusca && matchFiltro
   })
 
@@ -86,11 +101,10 @@ export default function Dashboard() {
   function formatarData(data) {
     if (!data) return ''
     return new Date(data).toLocaleDateString('pt-BR', {
-      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric'
     })
   }
 
-  // Exportar dados como CSV
   const exportarCSV = () => {
     if (casais.length === 0) return
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
@@ -107,7 +121,6 @@ export default function Dashboard() {
     registrarLog("Dados dos casais exportados para CSV.")
   }
 
-  // Exportar dados como PDF
   const exportarPDF = async () => {
     if (casais.length === 0) return
     try {
@@ -118,7 +131,7 @@ export default function Dashboard() {
       doc.text("Perfil 4D — Relatório Geral de Casais", 14, 20)
       doc.setFontSize(10)
       doc.setFont("helvetica", "normal")
-      doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, 14, 26)
+      doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 26)
       
       let y = 38
       casais.forEach((c, idx) => {
@@ -126,9 +139,9 @@ export default function Dashboard() {
           doc.addPage()
           y = 20
         }
-        const statusLabel = STATUS_LABEL[c.status]?.texto || c.status
+        const s = STATUS_LABEL[c.status] || STATUS_LABEL.aguardando
         doc.text(`${idx + 1}. ${c.nome_esposo || 'N/A'} & ${c.nome_esposa || 'N/A'}`, 14, y)
-        doc.text(`   Status: ${statusLabel} | Plano: ${c.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}`, 14, y + 5)
+        doc.text(`   Status: ${s.texto} | Plano: ${c.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}`, 14, y + 5)
         y += 14
       })
       doc.save("perfil4d_relatorio_geral.pdf")
@@ -210,7 +223,6 @@ export default function Dashboard() {
       carregarCasais()
       window.dispatchEvent(new Event('stats-updated'))
       
-      // Limpar campos
       setNomeEsposo('')
       setNomeEsposa('')
       setEmailEsposo('')
@@ -230,6 +242,12 @@ export default function Dashboard() {
     setModalAberto(true)
   }
 
+  function abrirModalDetalhes(casal) {
+    setModalCasal(casal)
+    setModalModo('detalhes')
+    setModalAberto(true)
+  }
+
   function abrirModalCriar() {
     setModalModo('criar')
     setLinksGerados(null)
@@ -241,6 +259,7 @@ export default function Dashboard() {
     if (confirm("Deseja realmente excluir este casal e todas as suas respostas permanentemente?")) {
       const { error } = await supabase.from('casais').delete().eq('id', id)
       if (!error) {
+        setModalAberto(false)
         carregarCasais()
         window.dispatchEvent(new Event('stats-updated'))
         registrarLog('Casal — dados excluídos permanentemente por sigilo.')
@@ -265,7 +284,45 @@ export default function Dashboard() {
 
   const copiarLink = (texto, tipo) => {
     navigator.clipboard.writeText(texto)
-    alert(`Link do ${tipo} copiado!`)
+    alert(`${tipo} copiado!`)
+  }
+
+  const obterPin = (id, conjuge) => {
+    if (!id) return ''
+    const cleanId = id.replace(/-/g, '')
+    return conjuge === 'esposo' ? cleanId.slice(0, 6).toUpperCase() : cleanId.slice(6, 12).toUpperCase()
+  }
+
+  // Sparkline Component
+  function Sparkline({ pctEsposo, pctEsposa }) {
+    const cats = [
+      { label: 'PRO', key: 'proatividade' },
+      { label: 'RES', key: 'resiliencia' },
+      { label: 'SEX', key: 'sexualidade' },
+      { label: 'FIN', key: 'financeiro' },
+      { label: 'SOC', key: 'socializante' },
+      { label: 'EXP', key: 'expressividade' },
+      { label: 'EMP', key: 'empatia' },
+    ]
+
+    return (
+      <div style={styles.sparklineContainer}>
+        {cats.map(cat => {
+          const valEsposo = pctEsposo ? pctEsposo[cat.key] || 0 : 0
+          const valEsposa = pctEsposa ? pctEsposa[cat.key] || 0 : 0
+
+          return (
+            <div key={cat.label} style={styles.sparkCol}>
+              <div style={styles.sparkBarWrapper}>
+                <div style={{ ...styles.sparkBar, height: `${valEsposo}%`, background: '#1565C0' }} title={`Esposo: ${valEsposo}%`} />
+                <div style={{ ...styles.sparkBar, height: `${valEsposa}%`, background: '#6A1B9A' }} title={`Esposa: ${valEsposa}%`} />
+              </div>
+              <span style={styles.sparkLabel}>{cat.label}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
@@ -274,7 +331,7 @@ export default function Dashboard() {
       {/* Top Header Bar */}
       <div style={styles.topBar}>
         <div>
-          <h2 style={styles.pageTitle}>Painel Geral</h2>
+          <h2 style={styles.pageTitle}>Gestão de Casais</h2>
           <p style={styles.pageSubtitle}>Acompanhamento analítico e gestão de relatórios clínicos.</p>
         </div>
         <button onClick={abrirModalCriar} style={styles.btnNovo}>+ Novo Casal</button>
@@ -322,10 +379,7 @@ export default function Dashboard() {
               >
                 <option value="todos">Todos os status</option>
                 <option value="aguardando">Aguardando Respostas</option>
-                <option value="esposo_respondeu">Esposo respondeu</option>
-                <option value="esposa_respondeu">Esposa respondeu</option>
-                <option value="completo">Completo</option>
-                <option value="relatorio_gerado">Relatório Gerado</option>
+                <option value="completo">Relatórios Prontos</option>
               </select>
             </div>
             
@@ -347,39 +401,58 @@ export default function Dashboard() {
             <div style={styles.lista}>
               {casaisFiltrados.map(casal => {
                 const s = STATUS_LABEL[casal.status] || STATUS_LABEL.aguardando
-                const podeGerar = casal.status === 'completo' || casal.status === 'relatorio_gerado'
+                
+                // Obter respostas correspondentes
+                const respEsposo = respostas.find(r => r.casal_id === casal.id && r.conjuge === 'esposo')
+                const respEsposa = respostas.find(r => r.casal_id === casal.id && r.conjuge === 'esposa')
+
+                const pctEsposo = respEsposo ? calcularPercentuais(respEsposo, 'esposo') : null
+                const pctEsposa = respEsposa ? calcularPercentuais(respEsposa, 'esposa') : null
+
+                const temEsposo = !!respEsposo
+                const temEsposa = !!respEsposa
+
                 return (
                   <div key={casal.id} style={styles.casalCard}>
-                    <div style={styles.casalInfo}>
+                    {/* Informações Primárias */}
+                    <div style={styles.casalInfoCol}>
                       <div style={styles.casalNomes}>
-                        <span style={styles.nomeEsposo}>{casal.nome_esposo || '(Não preenchido)'}</span>
+                        <span style={styles.nomeEsposo}>{casal.nome_esposo || '(Pendente)'}</span>
                         <span style={styles.amp}> & </span>
-                        <span style={styles.nomeEsposa}>{casal.nome_esposa || '(Não preenchido)'}</span>
+                        <span style={styles.nomeEsposa}>{casal.nome_esposa || '(Pendente)'}</span>
                       </div>
-                      <div style={styles.casalMeta}>
-                        <span style={{ ...styles.badge, color: s.cor, background: s.bg }}>{s.texto}</span>
-                        <span style={styles.badgePlano}>{casal.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}</span>
-                        <span style={styles.data}>Criado em: {formatarData(casal.created_at)}</span>
+                      <div style={styles.contatoMeta}>
+                        <span style={styles.emailText}>{casal.email_esposo || casal.email_esposa || casal.email_contato || 'Sem e-mail'}</span>
+                        <span style={styles.dataSeparator}>·</span>
+                        <span style={styles.dataText}>Início: {formatarData(casal.created_at)}</span>
                       </div>
+                    </div>
+
+                    {/* Progresso Individual e Status */}
+                    <div style={styles.casalProgressoCol}>
+                      <span style={{ ...styles.badge, color: s.cor, background: s.bg }}>{s.texto}</span>
+                      
+                      <div style={styles.progressoCheckboxes}>
+                        <div style={styles.progressoCheck}>
+                          <span style={temEsposo ? styles.checkIconGreen : styles.checkIconGrey}>✓</span>
+                          <span style={styles.checkLabel}>Esposo</span>
+                        </div>
+                        <div style={styles.progressoCheck}>
+                          <span style={temEsposa ? styles.checkIconGreen : styles.checkIconGrey}>✓</span>
+                          <span style={styles.checkLabel}>Esposa</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sparkline Column */}
+                    <div style={styles.casalSparklineCol}>
+                      <Sparkline pctEsposo={pctEsposo} pctEsposa={pctEsposa} />
                     </div>
                     
-                    <div style={styles.casalAcoes}>
-                      {podeGerar ? (
-                        <button
-                          onClick={() => router.push(`/relatorio-final?id=${casal.id}`)}
-                          style={styles.btnConsultor}
-                        >
-                          Ver Relatórios
-                        </button>
-                      ) : (
-                        <button onClick={() => abrirModalLinks(casal)} style={styles.btnVerLinks}>
-                          Copiar Links
-                        </button>
-                      )}
-                      <button onClick={() => excluirCasal(casal.id)} style={styles.btnExcluir} title="Excluir Casal">
-                        ✕
-                      </button>
-                    </div>
+                    {/* Navigation Chevron */}
+                    <button onClick={() => abrirModalDetalhes(casal)} style={styles.btnChevron} title="Visualizar Detalhes">
+                      ➔
+                    </button>
                   </div>
                 )
               })}
@@ -404,18 +477,21 @@ export default function Dashboard() {
 
       </div>
 
-      {/* Modal Genérico */}
+      {/* Modais */}
       {modalAberto && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
+            
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
-                {modalModo === 'criar' ? 'Cadastrar Novo Casal' : 'Links de Acesso'}
+                {modalModo === 'criar' && 'Cadastrar Novo Casal'}
+                {modalModo === 'links' && 'Links de Acesso'}
+                {modalModo === 'detalhes' && 'Detalhes do Casal'}
               </h3>
-              <button onClick={() => { setModalAberto(false); setLinksGerados(null); }} style={styles.modalFecharBtn}>✕</button>
+              <button onClick={() => { setModalAberto(false); setLinksGerados(null); setModalCasal(null); }} style={styles.modalFecharBtn}>✕</button>
             </div>
             
-            {modalModo === 'criar' ? (
+            {modalModo === 'criar' && (
               <form onSubmit={criarCasal} style={styles.modalForm}>
                 {erroModal && <div style={styles.erroBox}>{erroModal}</div>}
                 
@@ -481,7 +557,9 @@ export default function Dashboard() {
                   </div>
                 )}
               </form>
-            ) : (
+            )}
+
+            {modalModo === 'links' && (
               <div style={styles.modalLinksContent}>
                 <p style={styles.modalLinksDesc}>
                   Copie os links abaixo e envie individualmente para cada cônjuge responder.
@@ -510,6 +588,109 @@ export default function Dashboard() {
                 <button onClick={() => setModalAberto(false)} style={styles.btnModalConcluir}>
                   Fechar
                 </button>
+              </div>
+            )}
+
+            {modalModo === 'detalhes' && modalCasal && (
+              <div style={styles.detailsContent}>
+                {/* Cabeçalho */}
+                <div style={styles.detailsHeader}>
+                  <div style={styles.detailsHeaderMain}>
+                    <h4 style={styles.detailsNames}>{modalCasal.nome_esposo} & {modalCasal.nome_esposa}</h4>
+                    <span style={{ ...styles.badge, color: STATUS_LABEL[modalCasal.status]?.cor || '#E65100', background: STATUS_LABEL[modalCasal.status]?.bg || '#FFF8E1', fontSize: '11px', padding: '5px 12px' }}>
+                      {STATUS_LABEL[modalCasal.status]?.texto || 'AGUARDANDO'}
+                    </span>
+                  </div>
+                  <p style={styles.detailsSubText}>
+                    Plano: {modalCasal.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'} · Cadastrado em {formatarData(modalCasal.created_at)}
+                  </p>
+                </div>
+
+                {/* Detalhes Individuais */}
+                <div style={styles.spouseDetailsRow}>
+                  {/* Card Esposo */}
+                  <div style={styles.spouseDetailCard}>
+                    <span style={styles.relationTypeLabel}>Esposo</span>
+                    <h4 style={styles.spouseNameValue}>{modalCasal.nome_esposo || '(Não preenchido)'}</h4>
+                    
+                    <div style={styles.spouseActionGroup}>
+                      <button 
+                        type="button" 
+                        onClick={() => copiarLink(getLinks(modalCasal).esposo, 'Link do Esposo')} 
+                        style={styles.btnActionSpouse}
+                      >
+                        Copiar Link de Avaliação
+                      </button>
+                      
+                      <div style={styles.pinWrapper}>
+                        <span style={styles.pinLabel}>PIN de acesso:</span>
+                        <span style={styles.pinValue}>{obterPin(modalCasal.id, 'esposo')}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => copiarLink(obterPin(modalCasal.id, 'esposo'), 'PIN do Esposo')} 
+                          style={styles.btnCopyIcon}
+                          title="Copiar PIN"
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Esposa */}
+                  <div style={styles.spouseDetailCard}>
+                    <span style={styles.relationTypeLabel}>Esposa</span>
+                    <h4 style={styles.spouseNameValue}>{modalCasal.nome_esposa || '(Não preenchido)'}</h4>
+                    
+                    <div style={styles.spouseActionGroup}>
+                      <button 
+                        type="button" 
+                        onClick={() => copiarLink(getLinks(modalCasal).esposa, 'Link da Esposa')} 
+                        style={styles.btnActionSpouse}
+                      >
+                        Copiar Link de Avaliação
+                      </button>
+                      
+                      <div style={styles.pinWrapper}>
+                        <span style={styles.pinLabel}>PIN de acesso:</span>
+                        <span style={styles.pinValue}>{obterPin(modalCasal.id, 'esposa')}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => copiarLink(obterPin(modalCasal.id, 'esposa'), 'PIN da Esposa')} 
+                          style={styles.btnCopyIcon}
+                          title="Copiar PIN"
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ações Finais (Footer) */}
+                <div style={styles.modalFooterActions}>
+                  <button
+                    onClick={() => { setModalAberto(false); router.push(`/relatorio-final?id=${modalCasal.id}`); }}
+                    style={styles.btnFooterComparativa}
+                  >
+                    Análise Comparativa
+                  </button>
+                  
+                  <button
+                    onClick={() => { setModalAberto(false); router.push(`/relatorio-final?id=${modalCasal.id}`); }}
+                    style={styles.btnFooterDevolutiva}
+                  >
+                    Devolutiva
+                  </button>
+
+                  <button
+                    onClick={() => excluirCasal(modalCasal.id)}
+                    style={styles.btnFooterDelete}
+                    title="Excluir Casal"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -657,26 +838,27 @@ const styles = {
   },
   casalCard: {
     background: '#fff',
-    border: '1px solid #e8e0d4',
+    border: '1px solid #E5E7EB',
     borderRadius: '12px',
-    padding: '20px 24px',
+    padding: '24px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: '16px',
+    gap: '24px',
     flexWrap: 'wrap',
-    transition: 'all 0.2s',
-    boxShadow: '0 2px 8px rgba(13,27,62,0.02)',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
   },
-  casalInfo: {
-    flex: 1,
-    minWidth: '240px',
+  casalInfoCol: {
+    flex: '1 1 200px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
   },
   casalNomes: {
     fontSize: '18px',
     fontWeight: 'bold',
     color: '#0D1B3E',
-    marginBottom: '8px',
     fontFamily: 'Georgia, serif',
   },
   nomeEsposo: {
@@ -690,69 +872,72 @@ const styles = {
   nomeEsposa: {
     color: '#6A1B9A',
   },
-  casalMeta: {
+  contatoMeta: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
+    fontSize: '12px',
+    color: '#6B7280',
     flexWrap: 'wrap',
   },
+  emailText: {
+    fontWeight: '500',
+  },
+  dataSeparator: {
+    color: '#D1D5DB',
+  },
+  dataText: {
+    color: '#9CA3AF',
+  },
+  casalProgressoCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '10px',
+    minWidth: '150px',
+  },
   badge: {
-    fontSize: '11px',
+    fontSize: '10px',
     fontWeight: 'bold',
-    padding: '3px 10px',
-    borderRadius: '20px',
+    padding: '4px 10px',
+    borderRadius: '4px',
+    letterSpacing: '0.5px',
   },
-  badgePlano: {
-    fontSize: '11px',
-    fontWeight: 'bold',
-    padding: '3px 10px',
-    borderRadius: '20px',
-    background: '#F8F4ED',
-    color: '#8d6d1d',
-    border: '1px solid #e8e0d4',
+  progressoCheckboxes: {
+    display: 'flex',
+    gap: '12px',
   },
-  data: {
-    fontSize: '11px',
-    color: '#AAA',
-    marginLeft: '4px',
-  },
-  casalAcoes: {
+  progressoCheck: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '6px',
   },
-  btnVerLinks: {
-    padding: '10px 18px',
-    background: '#FFF8E1',
-    color: '#b78103',
-    border: '1px solid #FFE082',
-    borderRadius: '8px',
-    fontSize: '13px',
-    cursor: 'pointer',
+  checkIconGreen: {
+    color: '#2E7D32',
     fontWeight: 'bold',
-    transition: 'all 0.2s',
+    fontSize: '14px',
   },
-  btnConsultor: {
-    padding: '10px 18px',
-    background: '#C9A84C',
-    color: '#0D1B3E',
+  checkIconGrey: {
+    color: '#D1D5DB',
+    fontSize: '14px',
+  },
+  checkLabel: {
+    fontSize: '12px',
+    color: '#4B5563',
+  },
+  casalSparklineCol: {
+    minWidth: '220px',
+  },
+  btnChevron: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    background: '#F3F4F6',
     border: 'none',
-    borderRadius: '8px',
-    fontSize: '13px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    transition: 'opacity 0.2s',
-  },
-  btnExcluir: {
-    width: '34px',
-    height: '34px',
+    color: '#0D1B3E',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'transparent',
-    color: '#C62828',
-    border: '1px solid rgba(198,40,40,0.15)',
-    borderRadius: '50%',
     cursor: 'pointer',
     fontSize: '14px',
     transition: 'all 0.2s',
@@ -813,6 +998,46 @@ const styles = {
     background: '#fff',
     borderRadius: '12px',
     border: '1px solid #e8e0d4',
+  },
+
+  // Sparkline styles
+  sparklineContainer: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'flex-end',
+    height: '64px',
+    background: '#FAF9F6',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    border: '1px solid #E5E7EB',
+  },
+  sparkCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '24px',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  sparkBarWrapper: {
+    display: 'flex',
+    gap: '2px',
+    height: '35px',
+    alignItems: 'flex-end',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  sparkBar: {
+    width: '5px',
+    borderRadius: '1px 1px 0 0',
+    transition: 'height 0.3s ease',
+  },
+  sparkLabel: {
+    fontSize: '8px',
+    fontWeight: 'bold',
+    color: '#9CA3AF',
+    marginTop: '4px',
+    letterSpacing: '0.2px',
   },
 
   // Modal styles
@@ -994,5 +1219,157 @@ const styles = {
     cursor: 'pointer',
     marginTop: '10px',
     textAlign: 'center',
+  },
+
+  // Details Modal styles
+  detailsContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  },
+  detailsHeader: {
+    borderBottom: '1px solid #F3F4F6',
+    paddingBottom: '12px',
+  },
+  detailsHeaderMain: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '6px',
+  },
+  detailsNames: {
+    fontSize: '20px',
+    color: '#0D1B3E',
+    fontFamily: 'Georgia, serif',
+    margin: 0,
+  },
+  detailsSubText: {
+    fontSize: '13px',
+    color: '#6B7280',
+    margin: 0,
+  },
+  spouseDetailsRow: {
+    display: 'flex',
+    gap: '20px',
+    margin: '10px 0',
+    flexWrap: 'wrap',
+  },
+  spouseDetailCard: {
+    flex: '1 1 240px',
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: '10px',
+    padding: '18px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  relationTypeLabel: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    color: '#9CA3AF',
+    letterSpacing: '0.5px',
+  },
+  spouseNameValue: {
+    fontSize: '16px',
+    fontWeight: 'bold',
+    color: '#0D1B3E',
+    margin: 0,
+  },
+  spouseActionGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginTop: '6px',
+  },
+  btnActionSpouse: {
+    padding: '10px',
+    background: '#0D1B3E',
+    color: '#C9A84C',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.2s',
+  },
+  pinWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    background: '#FAF9F6',
+    border: '1px dashed #C9A84C',
+    borderRadius: '6px',
+    padding: '8px 12px',
+    justifyContent: 'space-between',
+  },
+  pinLabel: {
+    fontSize: '12px',
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  pinValue: {
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    color: '#0D1B3E',
+  },
+  btnCopyIcon: {
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: '2px',
+  },
+  modalFooterActions: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+    borderTop: '1px solid #F3F4F6',
+    paddingTop: '20px',
+    marginTop: '10px',
+  },
+  btnFooterComparativa: {
+    flex: 1,
+    padding: '12px 20px',
+    background: '#fff',
+    color: '#0D1B3E',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '13.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.2s',
+  },
+  btnFooterDevolutiva: {
+    flex: 1,
+    padding: '12px 20px',
+    background: '#C9A84C',
+    color: '#0D1B3E',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '13.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.2s',
+  },
+  btnFooterDelete: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '8px',
+    background: '#FEF2F2',
+    border: '1px solid #FEE2E2',
+    color: '#EF4444',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    fontSize: '16px',
+    transition: 'all 0.2s',
   },
 }

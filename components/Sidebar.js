@@ -8,19 +8,19 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   const menuItems = [
-    { label: 'Painel', path: '/dashboard', active: true },
-    { label: 'Casais', path: '/dashboard', active: false },
-    { label: 'Leads', path: '#', active: false },
-    { label: 'Tutorial', path: '#', active: false },
-    { label: 'Financeiro', path: '#', active: false },
-    { label: 'Cursos', path: '#', active: false },
-    { label: 'Guia', path: '#', active: false },
-    { label: 'Configurações', path: '#', active: false },
-    { label: 'Análises', path: '#', active: false },
-    { label: 'Relatórios', path: '#', active: false },
-    { label: 'Eventos', path: '#', active: false },
-    { label: 'Perguntas', path: '#', active: false },
-    { label: 'Admin', path: '#', active: false },
+    { label: 'Painel', path: '/dashboard/painel' },
+    { label: 'Casais', path: '/dashboard' },
+    { label: 'Leads', path: '/dashboard/leads' },
+    { label: 'Tutorial', path: '/dashboard/tutorial' },
+    { label: 'Financeiro', path: '/dashboard/financeiro' },
+    { label: 'Cursos', path: '/dashboard/cursos' },
+    { label: 'Guia', path: '/dashboard/guia' },
+    { label: 'Configurações', path: '/dashboard/configuracoes' },
+    { label: 'Análises', path: '/dashboard/analises' },
+    { label: 'Relatórios', path: '/dashboard/relatorios' },
+    { label: 'Eventos', path: '/dashboard/eventos' },
+    { label: 'Perguntas', path: '/dashboard/perguntas' },
+    { label: 'Admin', path: '/dashboard/admin' },
   ]
 
   async function sair() {
@@ -37,8 +37,7 @@ export default function Sidebar() {
       
       <div style={styles.navContainer}>
         {menuItems.map((item, idx) => {
-          // Casais is where the therapist currently manages, so make it look selected
-          const isActive = item.label === 'Casais'
+          const isActive = pathname === item.path
           return (
             <div
               key={idx}
