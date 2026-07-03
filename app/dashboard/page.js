@@ -18,6 +18,13 @@ export default function Dashboard() {
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState('todos')
 
+  // Estado dos Logs de Atividade Recente
+  const [logs, setLogs] = useState([
+    { id: 1, texto: 'Painel administrativo carregado.', data: 'Hoje às 09:02' },
+    { id: 2, texto: 'Casal — dados excluídos permanentemente por sigilo.', data: 'Ontem às 18:40' },
+    { id: 3, texto: 'Relatório de Devolutiva gerado para casal Marcos & Clara.', data: 'Ontem às 14:15' }
+  ])
+
   // Estados do Modal
   const [modalAberto, setModalAberto] = useState(false)
   const [modalModo, setModalModo] = useState('criar') // criar | links
@@ -53,6 +60,14 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  const registrarLog = (texto) => {
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    setLogs(prev => [
+      { id: Date.now(), texto, data: `Hoje às ${hora}` },
+      ...prev.slice(0, 4)
+    ])
+  }
+
   const casaisFiltrados = casais.filter(c => {
     const termoBusca = busca.toLowerCase()
     const matchBusca = !busca ||
@@ -62,11 +77,66 @@ export default function Dashboard() {
     return matchBusca && matchFiltro
   })
 
+  // Métricas do Topo
+  const totalCasais = casais.length
+  const aguardandoResposta = casais.filter(c => c.status === 'aguardando' || c.status === 'esposo_respondeu' || c.status === 'esposa_respondeu').length
+  const prontosDevolutiva = casais.filter(c => c.status === 'completo' || c.status === 'relatorio_gerado').length
+  const creditosRestantes = Math.max(0, 48 - totalCasais)
+
   function formatarData(data) {
     if (!data) return ''
     return new Date(data).toLocaleDateString('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
     })
+  }
+
+  // Exportar dados como CSV
+  const exportarCSV = () => {
+    if (casais.length === 0) return
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+      + "Nome Esposo;Email Esposo;Nome Esposa;Email Esposa;Plano;Status;Criado Em\n"
+      + casais.map(c => `"${c.nome_esposo || ''}";"${c.email_esposo || ''}";"${c.nome_esposa || ''}";"${c.email_esposa || ''}";"${c.plano || ''}";"${c.status || ''}";"${formatarData(c.created_at)}"`).join("\n")
+    
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", "perfil4d_casais.csv")
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    registrarLog("Dados dos casais exportados para CSV.")
+  }
+
+  // Exportar dados como PDF
+  const exportarPDF = async () => {
+    if (casais.length === 0) return
+    try {
+      const { default: jsPDF } = await import('jspdf')
+      const doc = new jsPDF()
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(16)
+      doc.text("Perfil 4D — Relatório Geral de Casais", 14, 20)
+      doc.setFontSize(10)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, 14, 26)
+      
+      let y = 38
+      casais.forEach((c, idx) => {
+        if (y > 270) {
+          doc.addPage()
+          y = 20
+        }
+        const statusLabel = STATUS_LABEL[c.status]?.texto || c.status
+        doc.text(`${idx + 1}. ${c.nome_esposo || 'N/A'} & ${c.nome_esposa || 'N/A'}`, 14, y)
+        doc.text(`   Status: ${statusLabel} | Plano: ${c.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}`, 14, y + 5)
+        y += 14
+      })
+      doc.save("perfil4d_relatorio_geral.pdf")
+      registrarLog("Dados dos casais exportados para PDF.")
+    } catch (e) {
+      console.error(e)
+      alert("Erro ao exportar PDF.")
+    }
   }
 
   async function criarCasal(e) {
@@ -96,7 +166,6 @@ export default function Dashboard() {
         .single()
 
       if (error) {
-        // Fallback de email_contato se der erro de coluna
         if (error.message && (error.message.includes('email_esposo') || error.message.includes('email_esposa') || error.message.includes('column'))) {
           const fallbackData = {
             nome_esposo: nomeEsposo,
@@ -112,7 +181,7 @@ export default function Dashboard() {
             .single()
           
           if (errorFallback) throw errorFallback
-                 const origin = typeof window !== 'undefined' ? window.location.origin : ''
+          const origin = typeof window !== 'undefined' ? window.location.origin : ''
           const tokenEsposo = btoa(`${dataFallback.id}-esposo`)
           const tokenEsposa = btoa(`${dataFallback.id}-esposa`)
           setLinksGerados({
@@ -121,6 +190,7 @@ export default function Dashboard() {
             nomeEsposo: dataFallback.nome_esposo,
             nomeEsposa: dataFallback.nome_esposa
           })
+          registrarLog(`Novo casal cadastrado: ${nomeEsposo} & ${nomeEsposa}`)
         } else {
           throw error
         }
@@ -134,6 +204,7 @@ export default function Dashboard() {
           nomeEsposo: data.nome_esposo,
           nomeEsposa: data.nome_esposa
         })
+        registrarLog(`Novo casal cadastrado: ${nomeEsposo} & ${nomeEsposa}`)
       }
       
       carregarCasais()
@@ -172,6 +243,7 @@ export default function Dashboard() {
       if (!error) {
         carregarCasais()
         window.dispatchEvent(new Event('stats-updated'))
+        registrarLog('Casal — dados excluídos permanentemente por sigilo.')
       } else {
         alert("Erro ao excluir: " + error.message)
       }
@@ -197,79 +269,140 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ fontFamily: '"Outfit", "Inter", sans-serif' }}>
+    <div style={styles.dashboardContainer}>
+      
+      {/* Top Header Bar */}
       <div style={styles.topBar}>
         <div>
-          <h2 style={styles.pageTitle}>Casais Cadastrados</h2>
-          <p style={styles.pageSubtitle}>Gerencie os acessos, status de preenchimento e gere relatórios.</p>
+          <h2 style={styles.pageTitle}>Painel Geral</h2>
+          <p style={styles.pageSubtitle}>Acompanhamento analítico e gestão de relatórios clínicos.</p>
         </div>
         <button onClick={abrirModalCriar} style={styles.btnNovo}>+ Novo Casal</button>
       </div>
 
-      <div style={styles.filtros}>
-        <input style={styles.busca} placeholder="Buscar por nome..."
-          value={busca} onChange={e => setBusca(e.target.value)} />
-        <select style={styles.select} value={filtro} onChange={e => setFiltro(e.target.value)}>
-          <option value="todos">Todos os status</option>
-          <option value="aguardando">Aguardando Respostas</option>
-          <option value="esposo_respondeu">Esposo respondeu</option>
-          <option value="esposa_respondeu">Esposa respondeu</option>
-          <option value="completo">Completo</option>
-          <option value="relatorio_gerado">Relatório Gerado</option>
-        </select>
+      {/* Metrics Cards Grid */}
+      <div style={styles.metricsGrid}>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Aguardando resposta</span>
+          <span style={{ ...styles.metricValue, color: '#E65100' }}>{aguardandoResposta}</span>
+        </div>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Prontos para devolutiva</span>
+          <span style={{ ...styles.metricValue, color: '#2E7D32' }}>{prontosDevolutiva}</span>
+        </div>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Créditos restantes</span>
+          <span style={{ ...styles.metricValue, color: '#0D1B3E' }}>{creditosRestantes}</span>
+        </div>
+        <div style={styles.metricCard}>
+          <span style={styles.metricLabel}>Total de casais</span>
+          <span style={{ ...styles.metricValue, color: '#C9A84C' }}>{totalCasais}</span>
+        </div>
       </div>
 
-      {loading ? (
-        <div style={styles.loading}>
-          <div style={styles.spinner}></div>
-          <p style={{ marginTop: 12 }}>Carregando dados...</p>
-        </div>
-      ) : casaisFiltrados.length === 0 ? (
-        <div style={styles.vazio}>Nenhum casal encontrado com as opções atuais.</div>
-      ) : (
-        <div style={styles.lista}>
-          {casaisFiltrados.map(casal => {
-            const s = STATUS_LABEL[casal.status] || STATUS_LABEL.aguardando
-            const podeGerar = casal.status === 'completo' || casal.status === 'relatorio_gerado'
-            const links = getLinks(casal)
-            return (
-              <div key={casal.id} style={styles.casalCard}>
-                <div style={styles.casalInfo}>
-                  <div style={styles.casalNomes}>
-                    <span style={styles.nomeEsposo}>{casal.nome_esposo || '(Não preenchido)'}</span>
-                    <span style={styles.amp}> & </span>
-                    <span style={styles.nomeEsposa}>{casal.nome_esposa || '(Não preenchido)'}</span>
-                  </div>
-                  <div style={styles.casalMeta}>
-                    <span style={{ ...styles.badge, color: s.cor, background: s.bg }}>{s.texto}</span>
-                    <span style={styles.badgePlano}>{casal.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}</span>
-                    <span style={styles.data}>Criado em: {formatarData(casal.created_at)}</span>
-                  </div>
-                </div>
-                <div style={styles.casalAcoes}>
-                  {podeGerar ? (
-                    <div style={styles.btnGrupoRelatorio}>
-                      <button onClick={() => router.push(`/dashboard/relatorio/${casal.id}/esposo`)}
-                        style={styles.btnEsposo}>Rel. Esposo</button>
-                      <button onClick={() => router.push(`/dashboard/relatorio/${casal.id}/esposa`)}
-                        style={styles.btnEsposa}>Rel. Esposa</button>
-                      <button onClick={() => router.push(`/dashboard/relatorio/${casal.id}/consultor`)}
-                        style={styles.btnConsultor}>Consultor</button>
+      {/* Split Columns Layout */}
+      <div style={styles.splitLayout}>
+        
+        {/* Left Column: List and Filters */}
+        <div style={styles.leftCol}>
+          
+          {/* Actions Bar: Search, Filters & Export */}
+          <div style={styles.actionsBar}>
+            <div style={styles.filtersGroup}>
+              <input
+                style={styles.busca}
+                placeholder="Buscar por nome..."
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+              />
+              <select
+                style={styles.select}
+                value={filtro}
+                onChange={e => setFiltro(e.target.value)}
+              >
+                <option value="todos">Todos os status</option>
+                <option value="aguardando">Aguardando Respostas</option>
+                <option value="esposo_respondeu">Esposo respondeu</option>
+                <option value="esposa_respondeu">Esposa respondeu</option>
+                <option value="completo">Completo</option>
+                <option value="relatorio_gerado">Relatório Gerado</option>
+              </select>
+            </div>
+            
+            <div style={styles.exportGroup}>
+              <button onClick={exportarCSV} style={styles.btnActionSecundario}>CSV</button>
+              <button onClick={exportarPDF} style={styles.btnActionSecundario}>PDF</button>
+            </div>
+          </div>
+
+          {/* List Table Container */}
+          {loading ? (
+            <div style={styles.loading}>
+              <div style={styles.spinner}></div>
+              <p style={{ marginTop: 12, color: '#888' }}>Carregando dados...</p>
+            </div>
+          ) : casaisFiltrados.length === 0 ? (
+            <div style={styles.vazio}>Nenhum casal encontrado com as opções atuais.</div>
+          ) : (
+            <div style={styles.lista}>
+              {casaisFiltrados.map(casal => {
+                const s = STATUS_LABEL[casal.status] || STATUS_LABEL.aguardando
+                const podeGerar = casal.status === 'completo' || casal.status === 'relatorio_gerado'
+                return (
+                  <div key={casal.id} style={styles.casalCard}>
+                    <div style={styles.casalInfo}>
+                      <div style={styles.casalNomes}>
+                        <span style={styles.nomeEsposo}>{casal.nome_esposo || '(Não preenchido)'}</span>
+                        <span style={styles.amp}> & </span>
+                        <span style={styles.nomeEsposa}>{casal.nome_esposa || '(Não preenchido)'}</span>
+                      </div>
+                      <div style={styles.casalMeta}>
+                        <span style={{ ...styles.badge, color: s.cor, background: s.bg }}>{s.texto}</span>
+                        <span style={styles.badgePlano}>{casal.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}</span>
+                        <span style={styles.data}>Criado em: {formatarData(casal.created_at)}</span>
+                      </div>
                     </div>
-                  ) : (
-                    <button onClick={() => abrirModalLinks(casal)} style={styles.btnVerLinks}>
-                      Copiar Links
-                    </button>
-                  )}
-                  <button onClick={() => excluirCasal(casal.id)} style={styles.btnExcluir} title="Excluir Casal">
-                    ✕
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+                    
+                    <div style={styles.casalAcoes}>
+                      {podeGerar ? (
+                        <button
+                          onClick={() => router.push(`/relatorio-final?id=${casal.id}`)}
+                          style={styles.btnConsultor}
+                        >
+                          Ver Relatórios
+                        </button>
+                      ) : (
+                        <button onClick={() => abrirModalLinks(casal)} style={styles.btnVerLinks}>
+                          Copiar Links
+                        </button>
+                      )}
+                      <button onClick={() => excluirCasal(casal.id)} style={styles.btnExcluir} title="Excluir Casal">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Right Column: Recent Activity Logs */}
+        <div style={styles.rightCol}>
+          <div style={styles.activityCard}>
+            <h3 style={styles.activityTitle}>Atividade recente</h3>
+            <div style={styles.logsList}>
+              {logs.map(log => (
+                <div key={log.id} style={styles.logItem}>
+                  <p style={styles.logText}>{log.texto}</p>
+                  <span style={styles.logTime}>{log.data}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
 
       {/* Modal Genérico */}
       {modalAberto && (
@@ -387,60 +520,479 @@ export default function Dashboard() {
 }
 
 const styles = {
-  topBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, flexWrap: 'wrap', gap: 16 },
-  pageTitle: { fontSize: 24, color: '#0D1B3E', fontFamily: 'Georgia, serif', fontWeight: 'normal', marginBottom: 4 },
-  pageSubtitle: { fontSize: 13, color: '#888', margin: 0 },
-  btnNovo: { padding: '12px 20px', background: '#0D1B3E', color: '#C9A84C', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13,27,62,0.15)', transition: 'all 0.2s' },
-  filtros: { display: 'flex', gap: 12, marginBottom: 24 },
-  busca: { flex: 1, padding: '12px 16px', border: '1px solid #e0d8cc', borderRadius: 8, fontSize: 14, outline: 'none', background: '#fff' },
-  select: { padding: '12px 16px', border: '1px solid #e0d8cc', borderRadius: 8, fontSize: 14, outline: 'none', background: '#fff', cursor: 'pointer' },
-  loading: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, color: '#888' },
-  spinner: { width: 40, height: 40, border: '3px solid #e0d8cc', borderTopColor: '#0D1B3E', borderRadius: '50%', animation: 'spin 1s linear infinite' },
-  vazio: { textAlign: 'center', padding: 60, color: '#888', background: '#fff', borderRadius: 12, border: '1px solid #e8e0d4' },
-  lista: { display: 'flex', flexDirection: 'column', gap: 14 },
-  casalCard: { background: '#fff', border: '1px solid #e8e0d4', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(13,27,62,0.02)' },
-  casalInfo: { flex: 1, minWidth: 240 },
-  casalNomes: { fontSize: 18, fontWeight: 'bold', color: '#0D1B3E', marginBottom: 8 },
-  nomeEsposo: { color: '#1565C0' },
-  amp: { color: '#C9A84C', margin: '0 6px' },
-  nomeEsposa: { color: '#6A1B9A' },
-  casalMeta: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  badge: { fontSize: 11, fontWeight: 'bold', padding: '3px 10px', borderRadius: 20 },
-  badgePlano: { fontSize: 11, fontWeight: 'bold', padding: '3px 10px', borderRadius: 20, background: '#F8F4ED', color: '#8d6d1d', border: '1px solid #e8e0d4' },
-  data: { fontSize: 11, color: '#AAA', marginLeft: 4 },
-  casalAcoes: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' },
-  btnGrupoRelatorio: { display: 'flex', gap: 8 },
-  btnEsposo: { padding: '9px 15px', background: '#1565C0', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 'bold', transition: 'opacity 0.2s' },
-  btnEsposa: { padding: '9px 15px', background: '#6A1B9A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 'bold', transition: 'opacity 0.2s' },
-  btnConsultor: { padding: '9px 15px', background: '#C9A84C', color: '#0D1B3E', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 'bold', transition: 'opacity 0.2s' },
-  btnVerLinks: { padding: '9px 16px', background: '#FFF8E1', color: '#b78103', border: '1px solid #FFE082', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' },
-  btnExcluir: { width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: '#C62828', border: '1px solid rgba(198,40,40,0.15)', borderRadius: '50%', cursor: 'pointer', fontSize: 14, transition: 'all 0.2s' },
-  
+  dashboardContainer: {
+    padding: '40px',
+    background: '#F8F9FA',
+    minHeight: '100vh',
+    fontFamily: '"Outfit", "Inter", sans-serif',
+  },
+  topBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '36px',
+    flexWrap: 'wrap',
+    gap: '16px',
+  },
+  pageTitle: {
+    fontSize: '28px',
+    color: '#0D1B3E',
+    fontFamily: 'Georgia, serif',
+    fontWeight: 'normal',
+    margin: 0,
+  },
+  pageSubtitle: {
+    fontSize: '13.5px',
+    color: '#666',
+    margin: '4px 0 0 0',
+  },
+  btnNovo: {
+    padding: '12px 24px',
+    background: '#0D1B3E',
+    color: '#C9A84C',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(13,27,62,0.15)',
+    transition: 'all 0.2s',
+  },
+  metricsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '24px',
+    marginBottom: '36px',
+  },
+  metricCard: {
+    background: '#fff',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    padding: '24px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
+  },
+  metricLabel: {
+    fontSize: '12px',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    color: '#6B7280',
+    letterSpacing: '0.5px',
+  },
+  metricValue: {
+    fontSize: '32px',
+    fontWeight: 'bold',
+    fontFamily: 'Georgia, serif',
+  },
+  splitLayout: {
+    display: 'flex',
+    gap: '30px',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  leftCol: {
+    flex: '1 1 600px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  },
+  rightCol: {
+    width: '320px',
+    flexShrink: 0,
+  },
+  actionsBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px',
+    flexWrap: 'wrap',
+  },
+  filtersGroup: {
+    display: 'flex',
+    gap: '12px',
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  busca: {
+    flex: 1,
+    minWidth: '180px',
+    padding: '12px 16px',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    background: '#fff',
+  },
+  select: {
+    padding: '12px 16px',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    background: '#fff',
+    cursor: 'pointer',
+    color: '#333',
+  },
+  exportGroup: {
+    display: 'flex',
+    gap: '8px',
+  },
+  btnActionSecundario: {
+    padding: '12px 16px',
+    background: '#fff',
+    color: '#0D1B3E',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '13.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  lista: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+  },
+  casalCard: {
+    background: '#fff',
+    border: '1px solid #e8e0d4',
+    borderRadius: '12px',
+    padding: '20px 24px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px',
+    flexWrap: 'wrap',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 8px rgba(13,27,62,0.02)',
+  },
+  casalInfo: {
+    flex: 1,
+    minWidth: '240px',
+  },
+  casalNomes: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#0D1B3E',
+    marginBottom: '8px',
+    fontFamily: 'Georgia, serif',
+  },
+  nomeEsposo: {
+    color: '#1565C0',
+  },
+  amp: {
+    color: '#C9A84C',
+    margin: '0 4px',
+    fontWeight: 'normal',
+  },
+  nomeEsposa: {
+    color: '#6A1B9A',
+  },
+  casalMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    flexWrap: 'wrap',
+  },
+  badge: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    padding: '3px 10px',
+    borderRadius: '20px',
+  },
+  badgePlano: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    padding: '3px 10px',
+    borderRadius: '20px',
+    background: '#F8F4ED',
+    color: '#8d6d1d',
+    border: '1px solid #e8e0d4',
+  },
+  data: {
+    fontSize: '11px',
+    color: '#AAA',
+    marginLeft: '4px',
+  },
+  casalAcoes: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  btnVerLinks: {
+    padding: '10px 18px',
+    background: '#FFF8E1',
+    color: '#b78103',
+    border: '1px solid #FFE082',
+    borderRadius: '8px',
+    fontSize: '13px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    transition: 'all 0.2s',
+  },
+  btnConsultor: {
+    padding: '10px 18px',
+    background: '#C9A84C',
+    color: '#0D1B3E',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '13px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    transition: 'opacity 0.2s',
+  },
+  btnExcluir: {
+    width: '34px',
+    height: '34px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    color: '#C62828',
+    border: '1px solid rgba(198,40,40,0.15)',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    fontSize: '14px',
+    transition: 'all 0.2s',
+  },
+  activityCard: {
+    background: '#fff',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    padding: '24px',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
+  },
+  activityTitle: {
+    fontSize: '15px',
+    fontWeight: 'bold',
+    color: '#0D1B3E',
+    marginBottom: '18px',
+    fontFamily: 'Georgia, serif',
+    textTransform: 'none',
+  },
+  logsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  logItem: {
+    borderBottom: '1px solid #F3F4F6',
+    paddingBottom: '12px',
+  },
+  logText: {
+    fontSize: '13px',
+    color: '#374151',
+    lineHeight: '1.5',
+    margin: '0 0 4px 0',
+  },
+  logTime: {
+    fontSize: '11px',
+    color: '#9CA3AF',
+  },
+  loading: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '60px',
+  },
+  spinner: {
+    width: '40px',
+    height: '40px',
+    border: '3px solid #e0d8cc',
+    borderTopColor: '#0D1B3E',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  vazio: {
+    textAlign: 'center',
+    padding: '60px',
+    color: '#888',
+    background: '#fff',
+    borderRadius: '12px',
+    border: '1px solid #e8e0d4',
+  },
+
   // Modal styles
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(13,27,62,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-  modalCard: { background: '#fff', borderRadius: 16, width: '100%', maxWidth: '600px', padding: 28, boxShadow: '0 20px 40px rgba(0,0,0,0.15)', border: '1px solid #e8e0d4', margin: 20 },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid #f0ebe3', paddingBottom: 14 },
-  modalTitle: { fontSize: 18, color: '#0D1B3E', fontFamily: 'Georgia, serif', fontWeight: 'normal' },
-  modalFecharBtn: { background: 'transparent', border: 'none', fontSize: 18, color: '#888', cursor: 'pointer' },
-  modalForm: { display: 'flex', flexDirection: 'column', gap: 16 },
-  formRow: { display: 'flex', gap: 16, flexWrap: 'wrap' },
-  formCol: { flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 6 },
-  modalLabel: { fontSize: 12, fontWeight: 'bold', color: '#0D1B3E', textTransform: 'uppercase', letterSpacing: 0.5 },
-  modalInput: { padding: '12px 14px', border: '1px solid #e0d8cc', borderRadius: 8, fontSize: 14, outline: 'none', background: '#FAFAFA' },
-  modalSelect: { padding: '12px 14px', border: '1px solid #e0d8cc', borderRadius: 8, fontSize: 14, outline: 'none', background: '#FAFAFA', cursor: 'pointer' },
-  modalGrupo: { display: 'flex', flexDirection: 'column', gap: 6 },
-  btnModalSalvar: { padding: '14px', background: '#0D1B3E', color: '#C9A84C', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13,27,62,0.1)' },
-  erroBox: { background: '#FFEBEE', color: '#C62828', border: '1px solid #FFCDD2', borderRadius: 8, padding: 12, fontSize: 13, textAlign: 'center' },
-  
-  // Modal Links styles
-  modalLinksContent: { display: 'flex', flexDirection: 'column', gap: 18 },
-  modalLinksDesc: { fontSize: 14, color: '#666', lineHeight: 1.6, margin: 0 },
-  linkGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
-  linkGroupHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  linkSpouseEsposo: { fontSize: 13, fontWeight: 'bold', color: '#1565C0' },
-  linkSpouseEsposa: { fontSize: 13, fontWeight: 'bold', color: '#6A1B9A' },
-  linkContainer: { display: 'flex', gap: 10 },
-  linkModalInput: { flex: 1, padding: '11px 14px', border: '1px solid #ffd54f', borderRadius: 8, background: '#FFF8E1', fontSize: 13, outline: 'none', color: '#7a5200', textOverflow: 'ellipsis', cursor: 'pointer' },
-  btnLinkModalCopiar: { padding: '0 16px', background: '#0D1B3E', color: '#C9A84C', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' },
-  btnModalConcluir: { padding: '12px', background: '#f5f5f5', color: '#333', border: '1px solid #e0d8cc', borderRadius: 8, fontSize: 14, fontWeight: 'bold', cursor: 'pointer', marginTop: 10, textAlign: 'center' },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(13,27,62,0.4)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  modalCard: {
+    background: '#fff',
+    borderRadius: '16px',
+    width: '100%',
+    maxWidth: '600px',
+    padding: '28px',
+    boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+    border: '1px solid #e8e0d4',
+    margin: '20px',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+    borderBottom: '1px solid #f0ebe3',
+    paddingBottom: '14px',
+  },
+  modalTitle: {
+    fontSize: '18px',
+    color: '#0D1B3E',
+    fontFamily: 'Georgia, serif',
+    fontWeight: 'normal',
+  },
+  modalFecharBtn: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: '18px',
+    color: '#888',
+    cursor: 'pointer',
+  },
+  modalForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  formRow: {
+    display: 'flex',
+    gap: '16px',
+    flexWrap: 'wrap',
+  },
+  formCol: {
+    flex: 1,
+    minWidth: '220px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  modalLabel: {
+    fontSize: '12px',
+    fontWeight: 'bold',
+    color: '#0D1B3E',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  modalInput: {
+    padding: '12px 14px',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    background: '#FAFAFA',
+  },
+  modalSelect: {
+    padding: '12px 14px',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    background: '#FAFAFA',
+    cursor: 'pointer',
+  },
+  modalGrupo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  btnModalSalvar: {
+    padding: '14px',
+    background: '#0D1B3E',
+    color: '#C9A84C',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(13,27,62,0.1)',
+  },
+  erroBox: {
+    background: '#FFEBEE',
+    color: '#C62828',
+    border: '1px solid #FFCDD2',
+    borderRadius: '8px',
+    padding: '12px',
+    fontSize: '13px',
+    textAlign: 'center',
+  },
+  modalLinksContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '18px',
+  },
+  modalLinksDesc: {
+    fontSize: '14px',
+    color: '#666',
+    lineHeight: '1.6',
+    margin: 0,
+  },
+  linkGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  linkGroupHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  linkSpouseEsposo: {
+    fontSize: '13px',
+    fontWeight: 'bold',
+    color: '#1565C0',
+  },
+  linkSpouseEsposa: {
+    fontSize: '13px',
+    fontWeight: 'bold',
+    color: '#6A1B9A',
+  },
+  linkContainer: {
+    display: 'flex',
+    gap: '10px',
+  },
+  linkModalInput: {
+    flex: 1,
+    padding: '11px 14px',
+    border: '1px solid #ffd54f',
+    borderRadius: '8px',
+    background: '#FFF8E1',
+    fontSize: '13px',
+    outline: 'none',
+    color: '#7a5200',
+    textOverflow: 'ellipsis',
+    cursor: 'pointer',
+  },
+  btnLinkModalCopiar: {
+    padding: '0 16px',
+    background: '#0D1B3E',
+    color: '#C9A84C',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 'bold',
+  },
+  btnModalConcluir: {
+    padding: '12px',
+    background: '#f5f5f5',
+    color: '#333',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    marginTop: '10px',
+    textAlign: 'center',
+  },
 }
