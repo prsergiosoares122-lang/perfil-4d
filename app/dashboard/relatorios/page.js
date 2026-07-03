@@ -7,222 +7,184 @@ export default function RelatoriosPage() {
   const router = useRouter()
   const [casais, setCasais] = useState([])
   const [loading, setLoading] = useState(true)
-  const [periodo, setPeriodo] = useState('30')
-
-  // Dados do Gráfico Baseados no Filtro (Consultas por mês)
-  const [chartData, setChartData] = useState([
-    { mes: 'Jan', consultas: 12 },
-    { mes: 'Fev', consultas: 19 },
-    { mes: 'Mar', consultas: 15 },
-    { mes: 'Abr', consultas: 25 },
-    { mes: 'Mai', consultas: 22 },
-    { mes: 'Jun', consultas: 30 }
-  ])
+  const [busca, setBusca] = useState('')
 
   useEffect(() => {
     verificarAuth()
-    carregarRelatorios()
+    carregarCasais()
   }, [])
-
-  useEffect(() => {
-    if (periodo === '30') {
-      setChartData([
-        { mes: 'Jan', consultas: 12 },
-        { mes: 'Fev', consultas: 19 },
-        { mes: 'Mar', consultas: 15 },
-        { mes: 'Abr', consultas: 25 },
-        { mes: 'Mai', consultas: 22 },
-        { mes: 'Jun', consultas: 30 }
-      ])
-    } else if (periodo === '90') {
-      setChartData([
-        { mes: 'Jan', consultas: 32 },
-        { mes: 'Fev', consultas: 45 },
-        { mes: 'Mar', consultas: 38 },
-        { mes: 'Abr', consultas: 58 },
-        { mes: 'Mai', consultas: 61 },
-        { mes: 'Jun', consultas: 78 }
-      ])
-    } else {
-      setChartData([
-        { mes: 'Jan', consultas: 120 },
-        { mes: 'Fev', consultas: 154 },
-        { mes: 'Mar', consultas: 142 },
-        { mes: 'Abr', consultas: 189 },
-        { mes: 'Mai', consultas: 201 },
-        { mes: 'Jun', consultas: 245 }
-      ])
-    }
-  }, [periodo])
 
   async function verificarAuth() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) router.push('/login')
   }
 
-  async function carregarRelatorios() {
+  async function carregarCasais() {
     setLoading(true)
     const { data, error } = await supabase
       .from('casais')
       .select('*')
       .order('created_at', { ascending: false })
     if (!error && data) {
-      // Listar casais completos/prontos para devolutiva
-      setCasais(data.filter(c => c.status === 'completo' || c.status === 'relatorio_gerado'))
+      setCasais(data)
     }
     setLoading(false)
   }
 
-  function formatarData(data) {
+  const handleDeletarCasal = async (id, nomes) => {
+    if (confirm(`Tem certeza de que deseja remover permanentemente o casal "${nomes}"? Todos os relatórios e respostas associadas serão excluídos do banco de dados.`)) {
+      const { error } = await supabase
+        .from('casais')
+        .delete()
+        .eq('id', id)
+      if (!error) {
+        setCasais(prev => prev.filter(c => c.id !== id))
+        alert('Casal removido com sucesso!')
+      } else {
+        alert('Erro ao excluir casal: ' + error.message)
+      }
+    }
+  }
+
+  const formatarData = (data) => {
     if (!data) return ''
     return new Date(data).toLocaleDateString('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric'
     })
   }
 
-  const baixarRelatorioSimulado = (nome) => {
-    alert(`Iniciando download do PDF do Relatório Perfil 4D - Casal ${nome}`)
-  }
-
-  // Encontrar o pico do gráfico para escala
-  const maxConsultas = Math.max(...chartData.map(d => d.consultas), 1)
+  const casaisFiltrados = casais.filter(c => {
+    const termo = busca.toLowerCase()
+    return c.nome_esposo.toLowerCase().includes(termo) || 
+           c.nome_esposa.toLowerCase().includes(termo) || 
+           (c.email_esposo && c.email_esposo.toLowerCase().includes(termo)) ||
+           (c.email_esposa && c.email_esposa.toLowerCase().includes(termo))
+  })
 
   return (
     <div style={styles.container}>
-      
-      {/* Top Header */}
+      {/* Header */}
       <div style={styles.topBar}>
         <div>
-          <h2 style={styles.pageTitle}>Análises e Relatórios</h2>
-          <p style={styles.pageSubtitle}>Monitore a atividade clínica, tempo de resposta e eficácia do Perfil 4D.</p>
-        </div>
-        
-        <select 
-          style={styles.selectPeriodo} 
-          value={periodo} 
-          onChange={e => setPeriodo(e.target.value)}
-        >
-          <option value="30">Últimos 30 dias</option>
-          <option value="90">Últimos 90 dias</option>
-          <option value="ano">Este ano</option>
-        </select>
-      </div>
-
-      {/* Metrics Row */}
-      <div style={styles.metricsGrid}>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Taxa de Conversão de Leads</span>
-          <span style={styles.metricValue}>74.2%</span>
-          <span style={styles.metricSubText}>Média de leads convertidos em casais</span>
-        </div>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Média de Tempo de Resposta</span>
-          <span style={styles.metricValue}>1.8 Dias</span>
-          <span style={styles.metricSubText}>Tempo até preenchimento de ambos</span>
-        </div>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Índice de Satisfação</span>
-          <span style={styles.metricValue}>96.8%</span>
-          <span style={styles.metricSubText}>Feedback pós-devolutiva clínica</span>
+          <h2 style={styles.pageTitle}>Central de Relatórios</h2>
+          <p style={styles.pageSubtitle}>Consulte os casais cadastrados e acesse instantaneamente as análises comportamentais e devolutivas.</p>
         </div>
       </div>
 
-      {/* Main Bar Chart Panel */}
-      <div style={styles.chartCard}>
-        <h3 style={styles.chartTitle}>Fluxo de Atendimentos (Consultas Realizadas)</h3>
-        
-        <div style={styles.chartContainer}>
-          <div style={styles.svgWrapper}>
-            <svg viewBox="0 0 600 200" style={{ width: '100%', height: 'auto' }}>
-              {/* Grid Lines */}
-              <line x1="40" y1="20" x2="580" y2="20" stroke="#F3F4F6" strokeWidth="1" />
-              <line x1="40" y1="70" x2="580" y2="70" stroke="#F3F4F6" strokeWidth="1" />
-              <line x1="40" y1="120" x2="580" y2="120" stroke="#F3F4F6" strokeWidth="1" />
-              <line x1="40" y1="170" x2="580" y2="170" stroke="#F3F4F6" strokeWidth="1" />
-
-              {/* Bars */}
-              {chartData.map((d, index) => {
-                const x = 70 + index * 85
-                const barHeight = (d.consultas / maxConsultas) * 130
-                const y = 170 - barHeight
-                return (
-                  <g key={d.mes}>
-                    <rect 
-                      x={x} 
-                      y={y} 
-                      width="36" 
-                      height={barHeight} 
-                      rx="4" 
-                      fill="#C9A84C"
-                      style={{ transition: 'all 0.5s ease-in-out' }}
-                    />
-                    <text 
-                      x={x + 18} 
-                      y={y - 8} 
-                      textAnchor="middle" 
-                      fill="#0D1B3E" 
-                      fontSize="11" 
-                      fontWeight="bold"
-                    >
-                      {d.consultas}
-                    </text>
-                    <text 
-                      x={x + 18} 
-                      y="190" 
-                      textAnchor="middle" 
-                      fill="#6B7280" 
-                      fontSize="12"
-                    >
-                      {d.mes}
-                    </text>
-                  </g>
-                )
-              })}
-            </svg>
-          </div>
-        </div>
+      {/* Search Filter Bar */}
+      <div style={styles.searchBar}>
+        <input 
+          style={styles.inputBusca} 
+          placeholder="Buscar casal por nome ou e-mail..."
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+        />
       </div>
 
-      {/* History Table Section */}
+      {/* Couples Directory Card */}
       <div style={styles.tableCard}>
-        <h3 style={styles.tableTitle}>Histórico de Relatórios Gerados</h3>
-        
         {loading ? (
           <div style={styles.loading}>
             <div style={styles.spinner}></div>
-            <p style={{ marginTop: 12, color: '#888' }}>Carregando histórico...</p>
+            <p style={{ marginTop: 12, color: '#888' }}>Carregando dados dos casais...</p>
           </div>
-        ) : casais.length === 0 ? (
-          <div style={styles.vazio}>Nenhum relatório finalizado e pronto para download no momento.</div>
+        ) : casaisFiltrados.length === 0 ? (
+          <div style={styles.vazio}>Nenhum registro de casal encontrado.</div>
         ) : (
           <div style={styles.tableContainer}>
             <table style={styles.table}>
               <thead>
                 <tr style={styles.thRow}>
-                  <th style={styles.th}>Data de Conclusão</th>
-                  <th style={styles.th}>Nome do Casal</th>
-                  <th style={styles.th}>Plano Contratado</th>
-                  <th style={styles.th}>Ação</th>
+                  <th style={styles.th}>Data Cadastro</th>
+                  <th style={styles.th}>Nomes do Casal</th>
+                  <th style={styles.th}>Plano</th>
+                  <th style={styles.th}>Status Geral</th>
+                  <th style={styles.th}>Acesso aos Relatórios e Devolutivas</th>
+                  <th style={styles.th}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {casais.map(c => {
-                  const nomeCasal = `${c.nome_esposo} & ${c.nome_esposa}`
+                {casaisFiltrados.map(c => {
+                  const nomesCasal = `${c.nome_esposo} & ${c.nome_esposa}`
+                  const completo = c.status === 'completo' || c.status === 'relatorio_gerado'
+                  
                   return (
                     <tr key={c.id} style={styles.tr}>
-                      <td style={styles.td}>{formatarData(c.updated_at || c.created_at)}</td>
+                      {/* Date */}
+                      <td style={styles.td}>{formatarData(c.created_at)}</td>
+                      
+                      {/* Couple Info */}
                       <td style={styles.td}>
-                        <span style={styles.casalName}>{nomeCasal}</span>
+                        <div style={styles.namesWrapper}>
+                          <span style={styles.namesText}>{nomesCasal}</span>
+                          <span style={styles.emailSubText}>{c.email_esposo || c.email_esposa || 'Sem e-mail cadastrado'}</span>
+                        </div>
                       </td>
+
+                      {/* Plan */}
                       <td style={styles.td}>
-                        {c.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}
+                        <span style={styles.planBadge}>
+                          {c.plano === 'devolutiva' ? 'Relatório + Devolutiva' : 'Relatório Simples'}
+                        </span>
                       </td>
+
+                      {/* Status */}
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.statusBadge,
+                          background: completo ? '#E8F5E9' : '#FFF8E1',
+                          color: completo ? '#2E7D32' : '#D97706'
+                        }}>
+                          {completo ? 'Completo' : 'Aguardando'}
+                        </span>
+                      </td>
+
+                      {/* Action Links */}
+                      <td style={styles.td}>
+                        <div style={styles.actionsGrid}>
+                          {/* 1. Análise Comparativa (Unified Screen) */}
+                          <button 
+                            onClick={() => router.push(`/relatorio-final?id=${c.id}`)}
+                            style={styles.btnComparativo}
+                          >
+                            Análise Comparativa
+                          </button>
+
+                          {/* Sub-reports links */}
+                          <div style={styles.subReportsRow}>
+                            <button 
+                              onClick={() => router.push(`/dashboard/relatorio/${c.id}/esposo`)}
+                              style={styles.btnSubReport}
+                              title="Ver relatório individual do esposo"
+                            >
+                              👨 Relatório Esposo
+                            </button>
+                            <button 
+                              onClick={() => router.push(`/dashboard/relatorio/${c.id}/esposa`)}
+                              style={styles.btnSubReport}
+                              title="Ver relatório individual da esposa"
+                            >
+                              👩 Relatório Esposa
+                            </button>
+                            <button 
+                              onClick={() => router.push(`/dashboard/relatorio/${c.id}/comparativo`)}
+                              style={{ ...styles.btnSubReport, background: '#C9A84C', color: '#0D1B3E' }}
+                              title="Ver gráfico comparativo de devolutiva clínica"
+                            >
+                              ⚖️ Devolutiva
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Row Delete */}
                       <td style={styles.td}>
                         <button 
-                          onClick={() => baixarRelatorioSimulado(nomeCasal)} 
-                          style={styles.btnDownload}
+                          onClick={() => handleDeletarCasal(c.id, nomesCasal)} 
+                          style={styles.btnDelete}
+                          title="Excluir casal do banco"
                         >
-                          Download PDF
+                          🗑️
                         </button>
                       </td>
                     </tr>
@@ -233,7 +195,6 @@ export default function RelatoriosPage() {
           </div>
         )}
       </div>
-
     </div>
   )
 }
@@ -246,12 +207,7 @@ const styles = {
     fontFamily: '"Outfit", "Inter", sans-serif',
   },
   topBar: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: '36px',
-    flexWrap: 'wrap',
-    gap: '16px',
   },
   pageTitle: {
     fontSize: '28px',
@@ -265,74 +221,18 @@ const styles = {
     color: '#666',
     margin: '4px 0 0 0',
   },
-  selectPeriodo: {
+  searchBar: {
+    marginBottom: '24px',
+  },
+  inputBusca: {
+    width: '100%',
+    maxWidth: '460px',
     padding: '12px 16px',
     border: '1px solid #e0d8cc',
     borderRadius: '8px',
     fontSize: '14px',
     background: '#fff',
     outline: 'none',
-    cursor: 'pointer',
-    color: '#333',
-  },
-  metricsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: '24px',
-    marginBottom: '36px',
-  },
-  metricCard: {
-    background: '#fff',
-    border: '1px solid #E5E7EB',
-    borderRadius: '12px',
-    padding: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
-  },
-  metricLabel: {
-    fontSize: '12px',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    color: '#6B7280',
-    letterSpacing: '0.5px',
-  },
-  metricValue: {
-    fontSize: '28px',
-    fontWeight: 'bold',
-    color: '#0D1B3E',
-    fontFamily: 'Georgia, serif',
-  },
-  metricSubText: {
-    fontSize: '11.5px',
-    color: '#9CA3AF',
-  },
-  chartCard: {
-    background: '#fff',
-    border: '1px solid #E5E7EB',
-    borderRadius: '16px',
-    padding: '28px',
-    marginBottom: '36px',
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
-  },
-  chartTitle: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    color: '#0D1B3E',
-    marginBottom: '24px',
-    fontFamily: 'Georgia, serif',
-  },
-  chartContainer: {
-    width: '100%',
-    maxWidth: '680px',
-    margin: '0 auto',
-  },
-  svgWrapper: {
-    background: '#FAF9F6',
-    borderRadius: '12px',
-    padding: '16px',
-    border: '1px solid #F3F4F6',
   },
   tableCard: {
     background: '#fff',
@@ -340,13 +240,6 @@ const styles = {
     borderRadius: '12px',
     padding: '24px',
     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
-  },
-  tableTitle: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    color: '#0D1B3E',
-    marginBottom: '20px',
-    fontFamily: 'Georgia, serif',
   },
   tableContainer: {
     overflowX: 'auto',
@@ -375,22 +268,78 @@ const styles = {
     padding: '16px',
     fontSize: '13.5px',
     color: '#4B5563',
+    verticalAlign: 'middle',
   },
-  casalName: {
+  namesWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  namesText: {
     fontWeight: 'bold',
     color: '#0D1B3E',
     fontFamily: 'Georgia, serif',
+    fontSize: '15px',
   },
-  btnDownload: {
-    padding: '6px 14px',
+  emailSubText: {
+    fontSize: '12px',
+    color: '#888',
+    marginTop: '2px',
+  },
+  planBadge: {
+    fontSize: '12px',
+    color: '#0D1B3E',
+    fontWeight: '500',
+  },
+  statusBadge: {
+    fontSize: '10px',
+    fontWeight: 'bold',
+    padding: '3px 8px',
+    borderRadius: '4px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  actionsGrid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    maxWidth: '480px',
+  },
+  btnComparativo: {
+    padding: '8px 16px',
     background: '#0D1B3E',
     color: '#C9A84C',
     border: 'none',
     borderRadius: '6px',
-    fontSize: '12.5px',
+    fontSize: '13px',
     fontWeight: 'bold',
     cursor: 'pointer',
+    textAlign: 'center',
     transition: 'all 0.2s',
+  },
+  subReportsRow: {
+    display: 'flex',
+    gap: '6px',
+    flexWrap: 'wrap',
+  },
+  btnSubReport: {
+    flex: 1,
+    padding: '6px 10px',
+    background: '#FAF9F6',
+    color: '#0D1B3E',
+    border: '1px solid #e0d8cc',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+  },
+  btnDelete: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: '16px',
+    cursor: 'pointer',
+    padding: '4px',
   },
   loading: {
     display: 'flex',

@@ -33,8 +33,23 @@ function QuestionarioContent() {
   const [tentouAvancar, setTentouAvancar] = useState(false)
   const [isCompleto, setIsCompleto] = useState(false)
 
+  const [perguntasState, setPerguntasState] = useState(PERGUNTAS)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const custom = localStorage.getItem('perfil4d_perguntas_customizadas')
+      if (custom) {
+        try {
+          setPerguntasState(JSON.parse(custom))
+        } catch (e) {
+          console.error("Erro ao carregar perguntas customizadas:", e)
+        }
+      }
+    }
+  }, [])
+
   const comportamentoAtual = TODOS[blocoAtual]
-  const perguntasAtuais = PERGUNTAS[comportamentoAtual] || []
+  const perguntasAtuais = perguntasState[comportamentoAtual] || []
   const totalBlocos = TODOS.length
   const progresso = Math.round((blocoAtual / totalBlocos) * 100)
 
@@ -127,7 +142,7 @@ function QuestionarioContent() {
     let acumulado = 0
     for (let k = 0; k < blocoIdx; k++) {
       const comp = TODOS[k]
-      acumulado += (PERGUNTAS[comp] || []).length
+      acumulado += (perguntasState[comp] || []).length
     }
     return acumulado + perguntaIdx + 1
   }

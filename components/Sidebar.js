@@ -14,11 +14,8 @@ export default function Sidebar() {
     { label: 'Tutorial', path: '/dashboard/tutorial' },
     { label: 'Financeiro', path: '/dashboard/financeiro' },
     { label: 'Cursos', path: '/dashboard/cursos' },
-    { label: 'Guia', path: '/dashboard/guia' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
-    { label: 'Análises', path: '/dashboard/analises' },
     { label: 'Relatórios', path: '/dashboard/relatorios' },
-    { label: 'Eventos', path: '/dashboard/eventos' },
     { label: 'Perguntas', path: '/dashboard/perguntas' },
     { label: 'Admin', path: '/dashboard/admin' },
   ]
