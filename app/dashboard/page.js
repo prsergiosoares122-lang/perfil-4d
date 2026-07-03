@@ -296,8 +296,8 @@ export default function Dashboard() {
     return conjuge === 'esposo' ? cleanId.slice(0, 6).toUpperCase() : cleanId.slice(6, 12).toUpperCase()
   }
 
-  // Sparkline Component
-  function Sparkline({ pctEsposo, pctEsposa }) {
+  // ComparacaoBarras Component (Horizontal comparative progress bars)
+  function ComparacaoBarras({ pctEsposo, pctEsposa }) {
     const cats = [
       { label: 'PRO', key: 'proatividade' },
       { label: 'RES', key: 'resiliencia' },
@@ -309,18 +309,24 @@ export default function Dashboard() {
     ]
 
     return (
-      <div style={styles.sparklineContainer}>
+      <div style={styles.barrasComparativasContainer}>
         {cats.map(cat => {
           const valEsposo = pctEsposo ? pctEsposo[cat.key] || 0 : 0
           const valEsposa = pctEsposa ? pctEsposa[cat.key] || 0 : 0
 
           return (
-            <div key={cat.label} style={styles.sparkCol}>
-              <div style={styles.sparkBarWrapper}>
-                <div style={{ ...styles.sparkBar, height: `${valEsposo}%`, background: '#1565C0' }} title={`Esposo: ${valEsposo}%`} />
-                <div style={{ ...styles.sparkBar, height: `${valEsposa}%`, background: '#6A1B9A' }} title={`Esposa: ${valEsposa}%`} />
+            <div key={cat.label} style={styles.comparacaoFila}>
+              <span style={styles.barLabel}>{cat.label}</span>
+              <div style={styles.barTrilho}>
+                <div style={styles.trilhoMetade}>
+                  <div style={{ ...styles.barEsposo, width: `${valEsposo}%` }} />
+                  <span style={styles.barValText}>{valEsposo}%</span>
+                </div>
+                <div style={styles.trilhoMetade}>
+                  <div style={{ ...styles.barEsposa, width: `${valEsposa}%` }} />
+                  <span style={styles.barValText}>{valEsposa}%</span>
+                </div>
               </div>
-              <span style={styles.sparkLabel}>{cat.label}</span>
             </div>
           )
         })}
@@ -375,6 +381,7 @@ export default function Dashboard() {
                 value={busca}
                 onChange={e => setBusca(e.target.value)}
               />
+              {/* Filtro: Removido conforme solicitado para futuras implementações
               <select
                 style={styles.select}
                 value={filtro}
@@ -384,6 +391,7 @@ export default function Dashboard() {
                 <option value="aguardando">Aguardando Respostas</option>
                 <option value="completo">Relatórios Prontos</option>
               </select>
+              */}
             </div>
             
             <div style={styles.exportGroup}>
@@ -446,9 +454,13 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Sparkline Column */}
+                    {/* Visualização de Gráfico Rápido */}
                     <div style={styles.casalSparklineCol}>
-                      <Sparkline pctEsposo={pctEsposo} pctEsposa={pctEsposa} />
+                      {temEsposo || temEsposa ? (
+                        <ComparacaoBarras pctEsposo={pctEsposo} pctEsposa={pctEsposa} />
+                      ) : (
+                        <div style={styles.sparkVazio}>Sem respostas ainda</div>
+                      )}
                     </div>
                     
                     {/* Navigation Chevron */}
@@ -672,8 +684,15 @@ export default function Dashboard() {
                 {/* Ações Finais (Footer) */}
                 <div style={styles.modalFooterActions}>
                   <button
+                    onClick={() => { setModalAberto(false); router.push(`/dashboard/relatorio/${modalCasal.id}/esposo`); }}
+                    style={styles.btnFooterNav}
+                  >
+                    Perfil Individual
+                  </button>
+
+                  <button
                     onClick={() => { setModalAberto(false); router.push(`/relatorio-final?id=${modalCasal.id}`); }}
-                    style={styles.btnFooterComparativa}
+                    style={styles.btnFooterNav}
                   >
                     Análise Comparativa
                   </button>
@@ -683,6 +702,13 @@ export default function Dashboard() {
                     style={styles.btnFooterDevolutiva}
                   >
                     Devolutiva
+                  </button>
+
+                  <button
+                    onClick={() => alert('Reprogramação Comportamental: Funcionalidade em desenvolvimento para futuras versões.')}
+                    style={{ ...styles.btnFooterNav, background: '#ECEFF1', color: '#78909C', borderColor: '#CFD8DC', cursor: 'not-allowed' }}
+                  >
+                    Reprogramação Comportamental
                   </button>
 
                   <button
@@ -928,7 +954,7 @@ const styles = {
     color: '#4B5563',
   },
   casalSparklineCol: {
-    minWidth: '220px',
+    minWidth: '280px',
   },
   btnChevron: {
     width: '38px',
@@ -1334,18 +1360,76 @@ const styles = {
     paddingTop: '20px',
     marginTop: '10px',
   },
-  btnFooterComparativa: {
+  btnFooterNav: {
     flex: 1,
-    padding: '12px 20px',
+    padding: '12px 14px',
     background: '#fff',
     color: '#0D1B3E',
     border: '1px solid #e0d8cc',
     borderRadius: '8px',
-    fontSize: '13.5px',
+    fontSize: '13px',
     fontWeight: 'bold',
     cursor: 'pointer',
     textAlign: 'center',
     transition: 'all 0.2s',
+  },
+  barrasComparativasContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    width: '100%',
+  },
+  comparacaoFila: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  barLabel: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: '#6B7280',
+    width: '28px',
+    textAlign: 'right',
+  },
+  barTrilho: {
+    flex: 1,
+    display: 'flex',
+    gap: '12px',
+  },
+  trilhoMetade: {
+    flex: 1,
+    height: '14px',
+    background: '#F3F4F6',
+    borderRadius: '4px',
+    position: 'relative',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  barEsposo: {
+    height: '100%',
+    background: '#1565C0',
+    borderRadius: '4px 0 0 4px',
+    transition: 'width 0.4s ease-in-out',
+  },
+  barEsposa: {
+    height: '100%',
+    background: '#6A1B9A',
+    borderRadius: '4px 0 0 4px',
+    transition: 'width 0.4s ease-in-out',
+  },
+  barValText: {
+    position: 'absolute',
+    right: '6px',
+    fontSize: '9px',
+    fontWeight: 'bold',
+    color: '#4B5563',
+  },
+  sparkVazio: {
+    fontSize: '12px',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    padding: '10px 0',
   },
   btnFooterDevolutiva: {
     flex: 1,

@@ -67,8 +67,8 @@ export default function AdminPage() {
     },
     { 
       id: 3, 
-      nome: 'Dr. Thiago Medeiros (Você)', 
-      email: 'thiago.medeiros@perfil4d.com', 
+      nome: 'Psicanalista Sérgio Soares (Você)', 
+      email: 'sergio.soares@perfil4d.com', 
       papel: 'Super Admin', 
       relatorios: 'Ilimitados', 
       status: 'Ativo', 
@@ -317,11 +317,14 @@ export default function AdminPage() {
                             style={{
                               ...styles.btnAcao,
                               opacity: roleSimulado === 'Super Admin' ? 1 : 0.4,
-                              cursor: roleSimulado === 'Super Admin' ? 'pointer' : 'not-allowed'
+                              cursor: roleSimulado === 'Super Admin' ? 'pointer' : 'not-allowed',
+                              color: isBloqueado ? '#E65100' : '#2E7D32',
+                              borderColor: isBloqueado ? '#FFE082' : '#C8E6C9',
+                              background: isBloqueado ? '#FFF8E1' : '#E8F5E9'
                             }}
                             title={isBloqueado ? "Desbloquear Profissional" : "Bloquear Profissional"}
                           >
-                            {isBloqueado ? '🔓' : '🔒'}
+                            {isBloqueado ? '🔒' : '🔓'}
                           </button>
                           
                           {/* Trash button (delete) - guarded */}

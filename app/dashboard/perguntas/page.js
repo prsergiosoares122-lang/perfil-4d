@@ -9,6 +9,7 @@ export default function PerguntasPage() {
   const [loading, setLoading] = useState(true)
   const [avisoSucesso, setAvisoSucesso] = useState('')
   const [editando, setEditando] = useState(null) // { numero, texto }
+  const [salvandoId, setSalvandoId] = useState(null)
   const [autorizado, setAutorizado] = useState(false)
 
   useEffect(() => {
