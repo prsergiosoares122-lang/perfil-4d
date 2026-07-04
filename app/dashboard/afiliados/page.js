@@ -34,6 +34,9 @@ export default function AfiliadosPage() {
   const [novaSenha, setNovaSenha] = useState('')
   const [novaSenhaVisivel, setNovaSenhaVisivel] = useState(false)
 
+  const [mostrarAlterarSenha, setMostrarAlterarSenha] = useState(false)
+  const [novaSenhaDetalhes, setNovaSenhaDetalhes] = useState('')
+
   useEffect(() => {
     verificarAuth()
     carregarProfissionais()
@@ -589,9 +592,107 @@ export default function AfiliadosPage() {
               </div>
               <div style={styles.detalhesRow}>
                 <span style={styles.detalhesLabel}>Senha de Acesso:</span>
-                <span style={{ ...styles.detalhesVal, fontWeight: 'bold', color: '#C62828' }}>
-                  {selecionado.senha || '(Sem senha salva)'}
-                </span>
+                <div style={{ ...styles.detalhesVal, display: 'flex', flexDirection: 'column' }}>
+                  {!mostrarAlterarSenha ? (
+                    <button 
+                      onClick={() => {
+                        setMostrarAlterarSenha(true)
+                        setNovaSenhaDetalhes('')
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0D1B3E',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        padding: 0,
+                        fontSize: '13.5px',
+                        textAlign: 'left'
+                      }}
+                    >
+                      Alterar Senha
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                      <input
+                        type="text"
+                        value={novaSenhaDetalhes}
+                        onChange={e => setNovaSenhaDetalhes(e.target.value)}
+                        placeholder="Nova senha"
+                        style={{
+                          padding: '6px 10px',
+                          border: '1px solid #e0d8cc',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          width: '120px'
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!novaSenhaDetalhes) return
+                          try {
+                            const bcrypt = require('bcryptjs')
+                            const salt = bcrypt.genSaltSync(10)
+                            const hash = bcrypt.hashSync(novaSenhaDetalhes, salt)
+                            
+                            const parts = (selecionado.planoOriginal || '').split(':')
+                            const basePapel = parts[0]
+                            
+                            let planoDb = ''
+                            if (basePapel === 'super_admin') {
+                              planoDb = `super_admin:${hash}:${novaSenhaDetalhes}`
+                            } else {
+                              const creditos = parts[1] || '10'
+                              planoDb = `${basePapel}:${creditos}:${hash}:${novaSenhaDetalhes}`
+                            }
+                            
+                            const { error } = await supabase
+                              .from('casais')
+                              .update({ plano: planoDb })
+                              .eq('id', selecionado.id)
+                              
+                            if (error) throw error
+                            
+                            alert('Senha atualizada com sucesso!')
+                            setMostrarAlterarSenha(false)
+                            setSelecionado(prev => ({ ...prev, senha: novaSenhaDetalhes, planoOriginal: planoDb }))
+                            carregarProfissionais()
+                          } catch (err) {
+                            console.error(err)
+                            alert('Erro ao salvar senha: ' + err.message)
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          background: '#0D1B3E',
+                          color: '#C9A84C',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        onClick={() => setMostrarAlterarSenha(false)}
+                        style={{
+                          padding: '6px 12px',
+                          background: '#fafafa',
+                          color: '#333',
+                          border: '1px solid #ccc',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={styles.detalhesRow}>
                 <span style={styles.detalhesLabel}>Papel:</span>

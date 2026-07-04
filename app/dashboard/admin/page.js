@@ -30,6 +30,9 @@ export default function AdminPage() {
   const [ajusteAcao, setAjusteAcao] = useState('Adicionar')
   const [ajusteMotivo, setAjusteMotivo] = useState('')
 
+  const [mostrarAlterarSenha, setMostrarAlterarSenha] = useState(false)
+  const [novaSenhaDetalhes, setNovaSenhaDetalhes] = useState('')
+
   useEffect(() => {
     verificarAuth()
     carregarProfissionais()
@@ -104,26 +107,32 @@ export default function AdminPage() {
         })
         .map(item => {
           const planoRaw = item.plano || ''
+          const partes = planoRaw.split(':')
+          const basePapel = partes[0]
+          
           let pName = 'Analista'
           let relatorios = 0
-          if (planoRaw.startsWith('super_admin')) {
+          let senhaSalva = ''
+          
+          if (basePapel === 'super_admin') {
             pName = 'Super Admin'
             relatorios = 'Ilimitados'
+            senhaSalva = partes[2] || ''
           } else {
-            const partes = planoRaw.split(':')
-            const basePapel = partes[0]
             pName = basePapel === 'analista' ? 'Analista' : basePapel === 'terapeuta' ? 'Terapeuta de Casal' : basePapel === 'psicanalista' ? 'Psicanalista' : 'Afiliado'
             relatorios = partes[1] ? parseInt(partes[1]) || 0 : 0
+            senhaSalva = partes[3] || ''
           }
           return {
             id: item.id,
             nome: item.nome_esposo,
             email: item.nome_esposa, // Email is stored in nome_esposa
             whatsapp: '',
-            senha: '',
+            senha: senhaSalva,
             papel: pName,
             relatorios: relatorios,
             status: item.status === 'Bloqueado' ? 'Bloqueado' : 'Ativo',
+            planoOriginal: planoRaw,
             historico: []
           }
         })
@@ -329,25 +338,6 @@ export default function AdminPage() {
 
   return (
     <div style={styles.container}>
-      {/* Simulation Toggle Top Bar */}
-      <div style={styles.simulacaoBar}>
-        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#0D1B3E' }}>
-          Simulador de Permissões:
-        </span>
-        <select 
-          style={styles.simulacaoSelect} 
-          value={roleSimulado} 
-          onChange={e => setRoleSimulado(e.target.value)}
-        >
-          <option value="Super Admin">Perfil: Super Admin (Acesso Completo)</option>
-          <option value="Analista">Perfil: Analista (Ações de Excluir/Bloquear Bloqueadas)</option>
-        </select>
-        <span style={styles.simulacaoDesc}>
-          {roleSimulado === 'Super Admin' 
-            ? '✓ Botões de Lixeira e Cadeado estão ativados.' 
-            : '🔒 Ações de excluir e bloquear estão desativadas para seu papel.'}
-        </span>
-      </div>
 
       {/* Top Header Bar */}
       <div style={styles.topBar}>
@@ -620,9 +610,107 @@ export default function AdminPage() {
               </div>
               <div style={styles.detalhesRow}>
                 <span style={styles.detalhesLabel}>Senha de Acesso:</span>
-                <span style={{ ...styles.detalhesVal, fontWeight: 'bold', color: '#C62828' }}>
-                  {selecionado.senha || '(Sem senha salva)'}
-                </span>
+                <div style={{ ...styles.detalhesVal, display: 'flex', flexDirection: 'column' }}>
+                  {!mostrarAlterarSenha ? (
+                    <button 
+                      onClick={() => {
+                        setMostrarAlterarSenha(true)
+                        setNovaSenhaDetalhes('')
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0D1B3E',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        padding: 0,
+                        fontSize: '13.5px',
+                        textAlign: 'left'
+                      }}
+                    >
+                      Alterar Senha
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                      <input
+                        type="text"
+                        value={novaSenhaDetalhes}
+                        onChange={e => setNovaSenhaDetalhes(e.target.value)}
+                        placeholder="Nova senha"
+                        style={{
+                          padding: '6px 10px',
+                          border: '1px solid #e0d8cc',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          width: '120px'
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!novaSenhaDetalhes) return
+                          try {
+                            const bcrypt = require('bcryptjs')
+                            const salt = bcrypt.genSaltSync(10)
+                            const hash = bcrypt.hashSync(novaSenhaDetalhes, salt)
+                            
+                            const parts = (selecionado.planoOriginal || '').split(':')
+                            const basePapel = parts[0]
+                            
+                            let planoDb = ''
+                            if (basePapel === 'super_admin') {
+                              planoDb = `super_admin:${hash}:${novaSenhaDetalhes}`
+                            } else {
+                              const creditos = parts[1] || '10'
+                              planoDb = `${basePapel}:${creditos}:${hash}:${novaSenhaDetalhes}`
+                            }
+                            
+                            const { error } = await supabase
+                              .from('casais')
+                              .update({ plano: planoDb })
+                              .eq('id', selecionado.id)
+                              
+                            if (error) throw error
+                            
+                            alert('Senha updated successfully!')
+                            setMostrarAlterarSenha(false)
+                            setSelecionado(prev => ({ ...prev, senha: novaSenhaDetalhes, planoOriginal: planoDb }))
+                            carregarProfissionais()
+                          } catch (err) {
+                            console.error(err)
+                            alert('Erro ao salvar senha: ' + err.message)
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          background: '#0D1B3E',
+                          color: '#C9A84C',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        onClick={() => setMostrarAlterarSenha(false)}
+                        style={{
+                          padding: '6px 12px',
+                          background: '#fafafa',
+                          color: '#333',
+                          border: '1px solid #ccc',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={styles.detalhesRow}>
                 <span style={styles.detalhesLabel}>Papel:</span>
