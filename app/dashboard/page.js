@@ -20,6 +20,11 @@ export default function Dashboard() {
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState('todos')
 
+  // Indicadores Globais do Admin
+  const [totalAfiliadosAtivos, setTotalAfiliadosAtivos] = useState(0)
+  const [totalRelatoriosGerados, setTotalRelatoriosGerados] = useState(0)
+  const [totalCasaisCadastrados, setTotalCasaisCadastrados] = useState(0)
+
   // Estado dos Logs de Atividade Recente
   const [logs, setLogs] = useState([
     { id: 1, texto: 'Painel administrativo carregado.', data: 'Hoje às 09:02' },
@@ -52,7 +57,19 @@ export default function Dashboard() {
       await new Promise(resolve => setTimeout(resolve, 1500))
     }
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) router.push('/login')
+    if (!session) {
+      router.push('/login')
+      return
+    }
+    const email = session.user.email.toLowerCase()
+    const isAdmin = email === 'prsergiosoares122@gmail.com' ||
+                    email === 'thiago.medeiros@perfil4d.com' ||
+                    email === 'sergio.soares@perfil4d.com' ||
+                    email === 'sergio@email.com' ||
+                    email.includes('admin')
+    if (!isAdmin) {
+      router.push('/dashboard/afiliado')
+    }
   }
 
   async function carregarCasais() {
@@ -63,8 +80,27 @@ export default function Dashboard() {
       .order('created_at', { ascending: false })
     
     if (!errorCasais && casaisData) {
-      const filtered = casaisData.filter(c => c.plano !== 'afiliado' && c.plano !== 'analista' && c.plano !== 'super_admin')
-      setCasais(filtered)
+      // 1. Separar casais de clientes comuns
+      const casaisClientes = casaisData.filter(c => {
+        const p = c.plano || ''
+        return !p.startsWith('afiliado') && !p.startsWith('analista') && !p.startsWith('super_admin')
+      })
+      setCasais(casaisClientes)
+
+      // 2. Separar profissionais/afiliados
+      const profs = casaisData.filter(c => {
+        const p = c.plano || ''
+        return p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin')
+      })
+
+      // 3. Calcular Indicadores Globais
+      const ativos = profs.filter(p => p.status === 'Ativo').length
+      const gerados = casaisClientes.filter(c => c.status === 'relatorio_gerado').length
+      const totalClientes = casaisClientes.length
+
+      setTotalAfiliadosAtivos(ativos)
+      setTotalRelatoriosGerados(gerados)
+      setTotalCasaisCadastrados(totalClientes)
       
       const { data: respostasData, error: errorRespostas } = await supabase
         .from('respostas')
@@ -350,20 +386,16 @@ export default function Dashboard() {
       {/* Metrics Cards Grid */}
       <div style={styles.metricsGrid}>
         <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Aguardando resposta</span>
-          <span style={{ ...styles.metricValue, color: '#E65100' }}>{aguardandoResposta}</span>
+          <span style={styles.metricLabel}>Afiliados Ativos</span>
+          <span style={{ ...styles.metricValue, color: '#1565C0' }}>{totalAfiliadosAtivos}</span>
         </div>
         <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Prontos para devolutiva</span>
-          <span style={{ ...styles.metricValue, color: '#2E7D32' }}>{prontosDevolutiva}</span>
+          <span style={styles.metricLabel}>Relatórios Gerados</span>
+          <span style={{ ...styles.metricValue, color: '#2E7D32' }}>{totalRelatoriosGerados}</span>
         </div>
         <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Relatórios restantes</span>
-          <span style={{ ...styles.metricValue, color: '#0D1B3E' }}>{creditosRestantes}</span>
-        </div>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Total de casais</span>
-          <span style={{ ...styles.metricValue, color: '#C9A84C' }}>{totalCasais}</span>
+          <span style={styles.metricLabel}>Total de Casais</span>
+          <span style={{ ...styles.metricValue, color: '#C9A84C' }}>{totalCasaisCadastrados}</span>
         </div>
       </div>
 

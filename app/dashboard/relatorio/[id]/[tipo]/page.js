@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../../../lib/supabase'
+import { decrementarSaldoRelatorio } from '../../../../../lib/afiliados'
 import { calcularPercentuais } from '../../../../../lib/perguntas'
 import { gerarRelatorioHTML, gerarRelatorioConsultor } from '../../../../../lib/relatorio'
 
@@ -67,6 +68,9 @@ export default function RelatorioPage() {
         // Consultor - relatório simples com os dois
         htmlGerado = gerarRelatorioConsultor(casalData, pEsposo, pEsposa)
       }
+
+      // Debitar do saldo do profissional criador, se aplicável, antes de gerar
+      await decrementarSaldoRelatorio(id)
 
       // Marcar como relatório gerado
       await supabase.from('casais').update({ status: 'relatorio_gerado' }).eq('id', id)

@@ -16,16 +16,17 @@ export default function LoginPage() {
     setErro('');
     
     try {
-      // 1. Verificar se a conta está cadastrada e bloqueada na tabela casais
+      // 1. Verificar se a conta está cadastrada e bloqueada/inativa na tabela casais
       const { data: profs, error: profError } = await supabase
         .from('casais')
         .select('*')
         .eq('email_esposo', email)
-        .in('plano', ['afiliado', 'analista', 'super_admin'])
       
       if (!profError && profs && profs.length > 0) {
-        if (profs[0].status === 'Bloqueado') {
-          throw new Error('Sua conta está bloqueada pelo administrador. Entre em contato com o suporte.');
+        const p = profs[0].plano || ''
+        const isProf = p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin')
+        if (isProf && (profs[0].status === 'Bloqueado' || profs[0].status === 'Inativo')) {
+          throw new Error('Sua conta está inativa ou bloqueada pelo administrador. Entre em contato com o suporte.');
         }
       }
 

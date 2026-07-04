@@ -31,11 +31,16 @@ export default function Sidebar() {
           .from('casais')
           .select('plano')
           .eq('email_esposo', email)
-          .in('plano', ['afiliado', 'analista'])
           .limit(1)
         if (data && data[0]) {
-          const p = data[0].plano
-          setRole(p === 'afiliado' ? 'Afiliado' : 'Analista')
+          const p = data[0].plano || ''
+          if (p.startsWith('afiliado')) {
+            setRole('Afiliado')
+          } else if (p.startsWith('analista')) {
+            setRole('Analista')
+          } else {
+            setRole('Analista')
+          }
         } else {
           setRole('Analista')
         }
@@ -44,9 +49,9 @@ export default function Sidebar() {
   }
 
   const allItems = [
-    { label: 'Painel', path: '/dashboard/painel' },
+    { label: 'Painel', path: role === 'Afiliado' ? '/dashboard/afiliado' : '/dashboard/painel' },
     { label: 'Casais', path: '/dashboard' },
-    { label: 'Leads', path: '/dashboard/leads' },
+    { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
     { label: 'Financeiro', path: '/dashboard/financeiro' },
     { label: 'Cursos', path: '/dashboard/cursos' },
@@ -60,7 +65,7 @@ export default function Sidebar() {
 
   const menuItems = allItems.filter(item => {
     if (role === 'Afiliado') {
-      const allowed = ['Painel', 'Casais', 'Relatórios', 'Tutorial']
+      const allowed = ['Painel', 'Tutorial']
       return allowed.includes(item.label)
     }
     return true
