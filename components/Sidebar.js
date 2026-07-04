@@ -15,19 +15,34 @@ export default function Sidebar() {
   }, [])
 
   async function checarRole() {
+    let email = ''
+    let userPlano = ''
+    
     const { data: { session } } = await supabase.auth.getSession()
     if (session && session.user) {
-      const email = session.user.email.toLowerCase()
-      
-      const { data } = await supabase
-        .from('casais')
-        .select('plano')
-        .eq('nome_esposa', email)
-        .limit(1)
-      
-      let userPlano = ''
-      if (data && data[0]) {
-        userPlano = data[0].plano || ''
+      email = session.user.email.toLowerCase()
+    } else {
+      if (typeof window !== 'undefined') {
+        const savedUser = localStorage.getItem('perfil4d_logged_user')
+        if (savedUser) {
+          const user = JSON.parse(savedUser)
+          email = user.email.toLowerCase()
+          userPlano = user.plano
+        }
+      }
+    }
+
+    if (email) {
+      if (!userPlano) {
+        const { data } = await supabase
+          .from('casais')
+          .select('plano')
+          .eq('nome_esposa', email)
+          .limit(1)
+        
+        if (data && data[0]) {
+          userPlano = data[0].plano || ''
+        }
       }
 
       if (

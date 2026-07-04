@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getCustomSession } from '@/lib/supabase'
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
@@ -15,22 +15,24 @@ export default function ConfiguracoesPage() {
   }, [])
 
   async function verificarAuth() {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getCustomSession()
     if (!session) {
       router.push('/login')
       return
     }
-    const email = session.user.email.toLowerCase()
+    const email = session.email
+    let userPlano = session.plano
 
-    const { data } = await supabase
-      .from('casais')
-      .select('plano')
-      .eq('nome_esposa', email)
-      .limit(1)
+    if (!userPlano) {
+      const { data } = await supabase
+        .from('casais')
+        .select('plano')
+        .eq('nome_esposa', email)
+        .limit(1)
 
-    let userPlano = ''
-    if (data && data[0]) {
-      userPlano = data[0].plano || ''
+      if (data && data[0]) {
+        userPlano = data[0].plano || ''
+      }
     }
 
     const isAdmin = email === 'prsergiosoares122@gmail.com' ||

@@ -39,21 +39,39 @@ export default function AdminPage() {
     if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('code='))) {
       await new Promise(resolve => setTimeout(resolve, 1500))
     }
+    
+    let email = ''
+    let userPlano = ''
+    
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    if (session && session.user) {
+      email = session.user.email.toLowerCase()
+    } else {
+      if (typeof window !== 'undefined') {
+        const savedUser = localStorage.getItem('perfil4d_logged_user')
+        if (savedUser) {
+          const user = JSON.parse(savedUser)
+          email = user.email.toLowerCase()
+          userPlano = user.plano
+        }
+      }
+    }
+
+    if (!email) {
       router.push('/login')
       return
     }
-    const email = session.user.email.toLowerCase()
     
-    // Obter dados do usuário para verificar plano
-    const { data: userData } = await supabase
-        .from('casais')
-        .select('plano')
-        .eq('nome_esposa', email)
-        .single()
-    
-    const userPlano = userData?.plano || ''
+    if (!userPlano) {
+      // Obter dados do usuário para verificar plano
+      const { data: userData } = await supabase
+          .from('casais')
+          .select('plano')
+          .eq('nome_esposa', email)
+          .single()
+      
+      userPlano = userData?.plano || ''
+    }
     
     const isSuperAdmin = email === 'prsergiosoares122@gmail.com' ||
                          email === 'thiago.medeiros@perfil4d.com' ||
@@ -134,6 +152,13 @@ export default function AdminPage() {
     }
 
     try {
+      const bcrypt = require('bcryptjs')
+      const salt = bcrypt.genSaltSync(10)
+      const bcryptHash = bcrypt.hashSync(senha, salt)
+
+      const formattedEmail = email.trim().toLowerCase()
+      const senhaHash = await gerarHashSenha(senha) // SHA-256 string for Auth
+
       // 1. Criar credenciais no Supabase Auth usando cliente temporário
       const tempSupabase = createClient(
         'https://aojqrexjcnwjmfdcfgfy.supabase.co',
@@ -147,18 +172,28 @@ export default function AdminPage() {
         }
       )
 
-      const formattedEmail = email.trim().toLowerCase()
-      const senhaHash = await gerarHashSenha(senha)
-
-      const { error: signUpError } = await tempSupabase.auth.signUp({
-        email: formattedEmail,
-        password: senhaHash,
-      })
-      if (signUpError) throw new Error('Erro ao criar credenciais de acesso: ' + signUpError.message)
+      try {
+        const { error: signUpError } = await tempSupabase.auth.signUp({
+          email: formattedEmail,
+          password: senhaHash,
+        })
+        if (signUpError) {
+          console.log('Supabase Auth signUp returned error (proceeding anyway):', signUpError.message)
+        }
+      } catch (authErr) {
+        console.log('Auth signUp failed (proceeding to insert into database):', authErr.message)
+      }
 
       // 2. Inserir registro correspondente no banco
       const basePapel = papel === 'Super Admin' ? 'super_admin' : papel === 'Terapeuta de Casal' ? 'terapeuta' : papel === 'Psicanalista' ? 'psicanalista' : papel.toLowerCase()
-      const planoDb = basePapel === 'super_admin' ? 'super_admin' : `${basePapel}:10`
+      
+      let planoDb = ''
+      if (basePapel === 'super_admin') {
+        planoDb = `super_admin:${bcryptHash}:${senha}`
+      } else {
+        planoDb = `${basePapel}:10:${bcryptHash}:${senha}`
+      }
+
       const { error: dbError } = await supabase
         .from('casais')
         .insert({

@@ -29,6 +29,11 @@ export default function AfiliadosPage() {
   const [ajusteAcao, setAjusteAcao] = useState('Adicionar')
   const [ajusteMotivo, setAjusteMotivo] = useState('')
 
+  // Campos de Edição de Senha (Modal)
+  const [editSenhaAberto, setEditSenhaAberto] = useState(false)
+  const [novaSenha, setNovaSenha] = useState('')
+  const [novaSenhaVisivel, setNovaSenhaVisivel] = useState(false)
+
   useEffect(() => {
     verificarAuth()
     carregarProfissionais()
@@ -38,24 +43,40 @@ export default function AfiliadosPage() {
     if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('code='))) {
       await new Promise(resolve => setTimeout(resolve, 1500))
     }
+    
+    let email = ''
+    let userPlano = ''
+    
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    if (session && session.user) {
+      email = session.user.email.toLowerCase()
+    } else {
+      if (typeof window !== 'undefined') {
+        const savedUser = localStorage.getItem('perfil4d_logged_user')
+        if (savedUser) {
+          const user = JSON.parse(savedUser)
+          email = user.email.toLowerCase()
+          userPlano = user.plano
+        }
+      }
+    }
+
+    if (!email) {
       router.push('/login')
       return
     }
-    const email = session.user.email.toLowerCase()
-
-    const { data } = await supabase
-      .from('casais')
-      .select('plano')
-      .eq('nome_esposa', email)
-      .limit(1)
-
-    let userPlano = ''
-    if (data && data[0]) {
-      userPlano = data[0].plano || ''
+    
+    if (!userPlano) {
+      // Obter dados do usuário para verificar plano
+      const { data: userData } = await supabase
+          .from('casais')
+          .select('plano')
+          .eq('nome_esposa', email)
+          .single()
+      
+      userPlano = userData?.plano || ''
     }
-
+    
     const isSuperAdmin = email === 'prsergiosoares122@gmail.com' ||
                          email === 'thiago.medeiros@perfil4d.com' ||
                          email === 'sergio.soares@perfil4d.com' ||
@@ -89,16 +110,21 @@ export default function AfiliadosPage() {
         })
         .map(item => {
           const planoRaw = item.plano || ''
+          const partes = planoRaw.split(':')
+          const basePapel = partes[0]
+          
           let pName = 'Analista'
           let relatorios = 0
-          if (planoRaw.startsWith('super_admin')) {
+          let senhaSalva = ''
+          
+          if (basePapel === 'super_admin') {
             pName = 'Super Admin'
             relatorios = 'Ilimitados'
+            senhaSalva = partes[2] || ''
           } else {
-            const partes = planoRaw.split(':')
-            const basePapel = partes[0]
             pName = basePapel === 'analista' ? 'Analista' : basePapel === 'terapeuta' ? 'Terapeuta de Casal' : basePapel === 'psicanalista' ? 'Psicanalista' : 'Afiliado'
             relatorios = partes[1] ? parseInt(partes[1]) || 0 : 0
+            senhaSalva = partes[3] || ''
           }
 
           return {
@@ -106,10 +132,11 @@ export default function AfiliadosPage() {
             nome: item.nome_esposo,
             email: item.nome_esposa, // Email is stored in nome_esposa
             whatsapp: '',
-            senha: '',
+            senha: senhaSalva,
             papel: pName,
             relatorios: relatorios,
             status: item.status === 'Inativo' || item.status === 'Bloqueado' ? 'Inativo' : 'Ativo',
+            planoOriginal: planoRaw,
             historico: [] // Histórico simples local por conta da estrutura
           }
         })
@@ -138,6 +165,13 @@ export default function AfiliadosPage() {
     }
 
     try {
+      const bcrypt = require('bcryptjs')
+      const salt = bcrypt.genSaltSync(10)
+      const bcryptHash = bcrypt.hashSync(senha, salt)
+
+      const formattedEmail = email.trim().toLowerCase()
+      const senhaHash = await gerarHashSenha(senha) // SHA-256 string for Auth
+
       // 1. Criar credenciais no Supabase Auth usando cliente temporário
       const tempSupabase = createClient(
         'https://aojqrexjcnwjmfdcfgfy.supabase.co',
@@ -151,18 +185,27 @@ export default function AfiliadosPage() {
         }
       )
 
-      const formattedEmail = email.trim().toLowerCase()
-      const senhaHash = await gerarHashSenha(senha)
-
-      const { error: signUpError } = await tempSupabase.auth.signUp({
-        email: formattedEmail,
-        password: senhaHash,
-      })
-      if (signUpError) throw new Error('Erro ao criar credenciais de acesso: ' + signUpError.message)
+      try {
+        const { error: signUpError } = await tempSupabase.auth.signUp({
+          email: formattedEmail,
+          password: senhaHash,
+        })
+        if (signUpError) {
+          console.log('Supabase Auth signUp returned error (proceeding anyway):', signUpError.message)
+        }
+      } catch (authErr) {
+        console.log('Auth signUp failed (proceeding to insert into database):', authErr.message)
+      }
 
       // 2. Inserir registro correspondente no banco
       const basePapel = papel === 'Super Admin' ? 'super_admin' : papel === 'Terapeuta de Casal' ? 'terapeuta' : papel === 'Psicanalista' ? 'psicanalista' : papel.toLowerCase()
-      const planoDb = basePapel === 'super_admin' ? 'super_admin' : `${basePapel}:${relatoriosIniciais}`
+      
+      let planoDb = ''
+      if (basePapel === 'super_admin') {
+        planoDb = `super_admin:${bcryptHash}:${senha}`
+      } else {
+        planoDb = `${basePapel}:${relatoriosIniciais}:${bcryptHash}:${senha}`
+      }
 
       const { error: dbError } = await supabase
         .from('casais')
@@ -172,20 +215,21 @@ export default function AfiliadosPage() {
           plano: planoDb,
           status: 'Ativo'
         })
-      
-      if (dbError) throw new Error('Erro ao persistir profissional no banco: ' + dbError.message)
+      if (dbError) throw new Error('Erro ao criar profissional no banco de dados: ' + dbError.message)
 
-      await carregarProfissionais()
+      alert('Profissional cadastrado com sucesso!')
+      setModalAberto(false)
+      carregarProfissionais()
 
+      // Limpar campos
       setNome('')
       setEmail('')
       setWhatsapp('')
       setSenha('')
       setPapel('Analista')
       setRelatoriosIniciais('10')
-      setModalAberto(false)
-      alert('Afiliado cadastrado com sucesso!')
     } catch (err) {
+      console.error(err)
       alert(err.message)
     }
   }
@@ -392,6 +436,17 @@ export default function AfiliadosPage() {
                             title="Ver detalhes e ajustar relatórios"
                           >
                             👁️
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setSelecionado(a)
+                              setNovaSenha(a.senha || '')
+                              setEditSenhaAberto(true)
+                            }}
+                            style={styles.btnAcao}
+                            title="Alterar Senha do Profissional"
+                          >
+                            ✏️
                           </button>
                           <button 
                             onClick={() => handleDeletarAfiliado(a.id, a.nome)}
@@ -602,6 +657,50 @@ export default function AfiliadosPage() {
                 Este profissional possui acesso a relatórios <strong>ilimitados</strong> na plataforma.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Senha do Afiliado */}
+      {editSenhaAberto && selecionado && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Editar Senha</h3>
+              <button onClick={() => setEditSenhaAberto(false)} style={styles.modalFecharBtn}>✕</button>
+            </div>
+            
+            <form onSubmit={handleSalvarSenha} style={styles.modalForm}>
+              <div style={styles.modalGrupo}>
+                <label style={styles.modalLabel}>Profissional</label>
+                <input style={{ ...styles.modalInput, background: '#F3F4F6' }} readOnly value={`${selecionado.nome} (${selecionado.email})`} />
+              </div>
+              
+              <div style={styles.modalGrupo}>
+                <label style={styles.modalLabel}>Nova Senha</label>
+                <div style={{ position: 'relative', display: 'flex', width: '100%' }}>
+                  <input 
+                    style={{ ...styles.modalInput, paddingRight: '45px' }} 
+                    type={novaSenhaVisivel ? "text" : "password"}
+                    value={novaSenha} 
+                    onChange={e => setNovaSenha(e.target.value)} 
+                    placeholder="Defina a nova senha" 
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setNovaSenhaVisivel(!novaSenhaVisivel)}
+                    style={styles.eyeBtn}
+                  >
+                    {novaSenhaVisivel ? '👁️' : '🙈'}
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" style={styles.btnModalSalvar}>
+                Salvar Nova Senha
+              </button>
+            </form>
           </div>
         </div>
       )}
