@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -105,11 +106,40 @@ export default function AdminPage() {
     e.preventDefault()
     if (!nome || !email || !senha) return
 
+    async function gerarHashSenha(s) {
+      if (!s) return ''
+      try {
+        const encoder = new TextEncoder()
+        const data = encoder.encode(s)
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      } catch (err) {
+        console.error('Error generating hash:', err)
+        return s
+      }
+    }
+
     try {
-      // 1. Criar credenciais no Supabase Auth
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: senha,
+      // 1. Criar credenciais no Supabase Auth usando cliente temporário
+      const tempSupabase = createClient(
+        'https://aojqrexjcnwjmfdcfgfy.supabase.co',
+        'sb_publishable_wCD4iCoimK9O_Js-975OdA_zwii0paQ',
+        {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        }
+      )
+
+      const formattedEmail = email.trim().toLowerCase()
+      const senhaHash = await gerarHashSenha(senha)
+
+      const { error: signUpError } = await tempSupabase.auth.signUp({
+        email: formattedEmail,
+        password: senhaHash,
       })
       if (signUpError) throw new Error('Erro ao criar credenciais de acesso: ' + signUpError.message)
 
@@ -120,7 +150,7 @@ export default function AdminPage() {
         .from('casais')
         .insert({
           nome_esposo: nome,
-          nome_esposa: email,
+          nome_esposa: formattedEmail,
           plano: planoDb,
           status: 'Ativo'
         })

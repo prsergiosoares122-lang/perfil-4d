@@ -34,6 +34,7 @@ export default function Sidebar() {
         email === 'prsergiosoares122@gmail.com' ||
         email === 'thiago.medeiros@perfil4d.com' ||
         email === 'sergio@email.com' ||
+        email === 'pr_sergiosoares@hotmail.com' ||
         email.includes('admin') ||
         userPlano.startsWith('super_admin')
       ) {

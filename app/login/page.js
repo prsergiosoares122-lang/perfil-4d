@@ -12,6 +12,20 @@ export default function LoginPage() {
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [mostrarEsqueciSenhaModal, setMostrarEsqueciSenhaModal] = useState(false);
 
+  async function gerarHashSenha(senha) {
+    if (!senha) return ''
+    try {
+      const encoder = new TextEncoder()
+      const data = encoder.encode(senha)
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    } catch (e) {
+      console.error('Error generating hash:', e)
+      return senha
+    }
+  }
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -19,26 +33,38 @@ export default function LoginPage() {
     
     try {
       // 1. Verificar se a conta está cadastrada e bloqueada/inativa na tabela casais
+      const formattedEmail = email.trim().toLowerCase()
       const { data: profs, error: profError } = await supabase
         .from('casais')
         .select('*')
-        .eq('nome_esposa', email)
+        .eq('nome_esposa', formattedEmail)
       
       if (!profError && profs && profs.length > 0) {
         const p = profs[0].plano || ''
-        const isProf = p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin')
+        const isProf = p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin') || p.startsWith('terapeuta') || p.startsWith('psicanalista')
         if (isProf && (profs[0].status === 'Bloqueado' || profs[0].status === 'Inativo')) {
           throw new Error('Sua conta está inativa ou bloqueada pelo administrador. Entre em contato com o suporte.');
         }
       }
 
       // 2. Acessar via Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Tentar login com o hash da senha primeiro
+      const senhaHash = await gerarHashSenha(password)
+      let { data, error } = await supabase.auth.signInWithPassword({
+        email: formattedEmail,
+        password: senhaHash,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Tentar fallback com senha em texto plano (para compatibilidade com cadastros antigos)
+        const fallback = await supabase.auth.signInWithPassword({
+          email: formattedEmail,
+          password: password,
+        });
+        if (fallback.error) {
+          throw fallback.error;
+        }
+      }
 
       router.push('/dashboard');
     } catch (err) {
@@ -138,6 +164,15 @@ export default function LoginPage() {
           <button type="submit" disabled={loading} style={styles.button}>
             {loading ? 'Autenticando...' : 'Entrar'}
           </button>
+
+          <a
+            href="https://wa.me/5521974013287?text=Estou%20com%20dificuldades%20em%20acessar%20o%20perfil%204D"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={styles.suporteButton}
+          >
+            Fale com o suporte
+          </a>
         </form>
       </div>
 
@@ -255,6 +290,23 @@ const styles = {
     transition: 'all 0.2s',
     marginTop: '8px',
     boxShadow: '0 4px 12px rgba(13, 27, 62, 0.15)',
+  },
+  suporteButton: {
+    width: '100%',
+    padding: '14px',
+    background: '#FAF9F6',
+    color: '#0D1B3E',
+    border: '1px solid #e0d8cc',
+    borderRadius: '8px',
+    fontSize: '15px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    textAlign: 'center',
+    textDecoration: 'none',
+    transition: 'all 0.2s',
+    marginTop: '4px',
+    display: 'block',
+    boxSizing: 'border-box'
   },
   footerText: {
     marginTop: '24px',

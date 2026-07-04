@@ -29,7 +29,7 @@ export default function Dashboard() {
     }
     const email = session.user.email.toLowerCase()
 
-    const { data } = await supabase
+    let { data, error } = await supabase
       .from('casais')
       .select('plano')
       .eq('nome_esposa', email)
@@ -38,12 +38,39 @@ export default function Dashboard() {
     let userPlano = ''
     if (data && data[0]) {
       userPlano = data[0].plano || ''
+    } else {
+      // Perfil não encontrado na tabela 'casais' (por exemplo, se o insert falhou anteriormente ou foi criado via auth)
+      // Criar o perfil correspondente automaticamente para auto-recuperação
+      const isSuperAdminEmail = 
+        email === 'prsergiosoares122@gmail.com' ||
+        email === 'thiago.medeiros@perfil4d.com' ||
+        email === 'sergio.soares@perfil4d.com' ||
+        email === 'sergio@email.com' ||
+        email === 'pr_sergiosoares@hotmail.com' ||
+        email.includes('admin')
+
+      const planoDb = isSuperAdminEmail ? 'super_admin' : 'analista:10'
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('casais')
+        .insert({
+          nome_esposo: isSuperAdminEmail ? 'Sergio Soares' : 'Profissional',
+          nome_esposa: email,
+          plano: planoDb,
+          status: 'Ativo'
+        })
+        .select()
+
+      if (!insertError && inserted && inserted[0]) {
+        userPlano = inserted[0].plano || ''
+      }
     }
 
     const adminCheck = email === 'prsergiosoares122@gmail.com' ||
                        email === 'thiago.medeiros@perfil4d.com' ||
                        email === 'sergio.soares@perfil4d.com' ||
                        email === 'sergio@email.com' ||
+                       email === 'pr_sergiosoares@hotmail.com' ||
                        email.includes('admin') ||
                        userPlano.startsWith('super_admin')
     setIsAdmin(adminCheck)
