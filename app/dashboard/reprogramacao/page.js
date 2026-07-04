@@ -190,6 +190,16 @@ function ReprogramacaoContent() {
   const diasFase2 = guiaAtivo?.dias.slice(30, 60) || []
   const diasFase3 = guiaAtivo?.dias.slice(60, 90) || []
 
+  const obterUrlPdf = (nomeCompleto) => {
+    if (!nomeCompleto) return '#'
+    const primeiroNome = nomeCompleto.trim().split(' ')[0]
+    const nomeLimpo = primeiroNome
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+    return `/Guia_90dias_${nomeLimpo}.pdf`
+  }
+
   return (
     <div style={styles.container}>
       {/* Top Navigation / Breadcrumbs */}
@@ -200,9 +210,25 @@ function ReprogramacaoContent() {
             Cronograma de 90 dias personalizado para <strong>{casal.nome_esposo}</strong> & <strong>{casal.nome_esposa}</strong>.
           </p>
         </div>
-        <button onClick={() => router.push('/dashboard')} style={styles.btnNavVoltar}>
-          ← Painel de Casais
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <a 
+            href={obterUrlPdf(casal.nome_esposo)} 
+            download={`Guia_90dias_${casal.nome_esposo.trim().split(' ')[0].toUpperCase()}.pdf`} 
+            style={styles.btnDownloadPdf}
+          >
+            📥 Baixar Reprogramação (Esposo)
+          </a>
+          <a 
+            href={obterUrlPdf(casal.nome_esposa)} 
+            download={`Guia_90dias_${casal.nome_esposa.trim().split(' ')[0].toUpperCase()}.pdf`} 
+            style={styles.btnDownloadPdf}
+          >
+            📥 Baixar Reprogramação (Esposa)
+          </a>
+          <button onClick={() => router.push('/dashboard')} style={styles.btnNavVoltar}>
+            ← Painel de Casais
+          </button>
+        </div>
       </div>
 
       {/* Tabs para Selecionar o Cônjuge */}
@@ -493,6 +519,23 @@ const styles = {
     fontSize: '13px',
     fontWeight: 'bold',
     cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  btnDownloadPdf: {
+    padding: '10px 18px',
+    background: '#0D1B3E',
+    color: '#C9A84C',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(13,27,62,0.1)',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
     transition: 'all 0.2s',
   },
   tabContainer: {
