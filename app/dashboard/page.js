@@ -15,6 +15,7 @@ const STATUS_LABEL = {
 export default function Dashboard() {
   const [isAdmin, setIsAdmin] = useState(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     checarPerfil()
@@ -27,11 +28,24 @@ export default function Dashboard() {
       return
     }
     const email = session.user.email.toLowerCase()
+
+    const { data } = await supabase
+      .from('casais')
+      .select('plano')
+      .eq('nome_esposa', email)
+      .limit(1)
+
+    let userPlano = ''
+    if (data && data[0]) {
+      userPlano = data[0].plano || ''
+    }
+
     const adminCheck = email === 'prsergiosoares122@gmail.com' ||
                        email === 'thiago.medeiros@perfil4d.com' ||
                        email === 'sergio.soares@perfil4d.com' ||
                        email === 'sergio@email.com' ||
-                       email.includes('admin')
+                       email.includes('admin') ||
+                       userPlano.startsWith('super_admin')
     setIsAdmin(adminCheck)
     setLoading(false)
   }

@@ -439,6 +439,7 @@ export default function AfiliadosPage() {
                   value={papel} 
                   onChange={e => setPapel(e.target.value)}
                 >
+                  <option value="Super Admin">Super Admin</option>
                   <option value="Analista">Analista</option>
                   <option value="Terapeuta de Casal">Terapeuta de Casal</option>
                   <option value="Psicanalista">Psicanalista</option>

@@ -18,29 +18,36 @@ export default function Sidebar() {
     const { data: { session } } = await supabase.auth.getSession()
     if (session && session.user) {
       const email = session.user.email.toLowerCase()
+      
+      const { data } = await supabase
+        .from('casais')
+        .select('plano')
+        .eq('nome_esposa', email)
+        .limit(1)
+      
+      let userPlano = ''
+      if (data && data[0]) {
+        userPlano = data[0].plano || ''
+      }
+
       if (
         email === 'prsergiosoares122@gmail.com' ||
         email === 'thiago.medeiros@perfil4d.com' ||
         email === 'sergio@email.com' ||
-        email.includes('admin')
+        email.includes('admin') ||
+        userPlano.startsWith('super_admin')
       ) {
         setIsSuperAdmin(true)
         setRole('Super Admin')
       } else {
-        const { data } = await supabase
-          .from('casais')
-          .select('plano')
-          .eq('nome_esposa', email)
-          .limit(1)
-        if (data && data[0]) {
-          const p = data[0].plano || ''
-          if (p.startsWith('afiliado')) {
-            setRole('Afiliado')
-          } else if (p.startsWith('analista')) {
-            setRole('Analista')
-          } else {
-            setRole('Analista')
-          }
+        if (userPlano.startsWith('afiliado')) {
+          setRole('Afiliado')
+        } else if (userPlano.startsWith('analista')) {
+          setRole('Analista')
+        } else if (userPlano.startsWith('terapeuta')) {
+          setRole('Terapeuta de Casal')
+        } else if (userPlano.startsWith('psicanalista')) {
+          setRole('Psicanalista')
         } else {
           setRole('Analista')
         }
@@ -49,11 +56,10 @@ export default function Sidebar() {
   }
 
   const allItems = [
-    { label: 'Painel', path: (role === 'Afiliado' || role === 'Analista') ? '/dashboard' : '/dashboard/painel' },
+    { label: 'Painel', path: (role === 'Afiliado' || role === 'Analista' || role === 'Terapeuta de Casal' || role === 'Psicanalista') ? '/dashboard' : '/dashboard/painel' },
     { label: 'Casais', path: '/dashboard' },
     { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
-    { label: 'Financeiro', path: '/dashboard/financeiro' },
     { label: 'Cursos', path: '/dashboard/cursos' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
     { label: 'Relatórios', path: '/dashboard/relatorios' },
@@ -64,7 +70,7 @@ export default function Sidebar() {
   ]
 
   const menuItems = allItems.filter(item => {
-    if (role === 'Afiliado' || role === 'Analista') {
+    if (role === 'Afiliado' || role === 'Analista' || role === 'Terapeuta de Casal' || role === 'Psicanalista') {
       const allowed = ['Painel', 'Tutorial']
       return allowed.includes(item.label)
     }
