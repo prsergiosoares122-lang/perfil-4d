@@ -8,8 +8,6 @@ CREATE TABLE casais (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   nome_esposo TEXT NOT NULL,
   nome_esposa TEXT NOT NULL,
-  email_esposo TEXT,
-  email_esposa TEXT,
   plano TEXT DEFAULT 'relatorio', -- 'relatorio' ou 'devolutiva'
   status TEXT DEFAULT 'aguardando', -- 'aguardando', 'esposo_respondeu', 'esposa_respondeu', 'completo', 'relatorio_gerado'
   created_at TIMESTAMPTZ DEFAULT NOW(),

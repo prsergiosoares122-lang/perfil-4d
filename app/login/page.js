@@ -32,43 +32,66 @@ export default function LoginPage() {
     setErro('');
     
     try {
-      // 1. Verificar se a conta está cadastrada e bloqueada/inativa na tabela casais
       const formattedEmail = email.trim().toLowerCase()
+      
+      console.log("=== LOGIN DEBUG ===");
+      console.log("Email:", formattedEmail);
+
+      // 1. Verificar se a conta está cadastrada e bloqueada/inativa na tabela casais
       const { data: profs, error: profError } = await supabase
         .from('casais')
         .select('*')
         .eq('nome_esposa', formattedEmail)
       
-      if (!profError && profs && profs.length > 0) {
-        const p = profs[0].plano || ''
-        const isProf = p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin') || p.startsWith('terapeuta') || p.startsWith('psicanalista')
+      console.log("Database result (profs):", profs);
+      if (profError) {
+        console.log("Database query error:", profError.message);
+      }
+
+      let userRole = 'Nenhum'
+      if (profs && profs[0]) {
+        userRole = profs[0].plano || ''
+        console.log("ROLE RECUPERADA DO BANCO DE DADOS (plano):", userRole);
+        
+        const isProf = userRole.startsWith('afiliado') || userRole.startsWith('analista') || userRole.startsWith('super_admin') || userRole.startsWith('terapeuta') || userRole.startsWith('psicanalista')
         if (isProf && (profs[0].status === 'Bloqueado' || profs[0].status === 'Inativo')) {
           throw new Error('Sua conta está inativa ou bloqueada pelo administrador. Entre em contato com o suporte.');
         }
+      } else {
+        console.log("Nenhum perfil correspondente na tabela casais.");
       }
 
       // 2. Acessar via Supabase Auth
       // Tentar login com o hash da senha primeiro
       const senhaHash = await gerarHashSenha(password)
+      console.log("Tentativa 1 (com hash):", senhaHash);
       let { data, error } = await supabase.auth.signInWithPassword({
         email: formattedEmail,
         password: senhaHash,
       });
 
       if (error) {
+        console.log("Tentativa 1 falhou com erro:", error.message);
+        console.log("Tentativa 2 (texto plano):", password);
         // Tentar fallback com senha em texto plano (para compatibilidade com cadastros antigos)
         const fallback = await supabase.auth.signInWithPassword({
           email: formattedEmail,
           password: password,
         });
+        
         if (fallback.error) {
+          console.log("Tentativa 2 falhou com erro:", fallback.error.message);
           throw fallback.error;
+        } else {
+          console.log("✓ Login via texto plano bem-sucedido!");
         }
+      } else {
+        console.log("✓ Login via hash bem-sucedido!");
       }
 
       router.push('/dashboard');
     } catch (err) {
-      console.error("Erro no login:", err);
+      console.error("Erro final no login:", err);
       let msg = err.message || "Erro ao entrar. Verifique suas credenciais.";
       if (msg.includes("Invalid login credentials") || msg.includes("invalid-credential")) {
         msg = "E-mail ou senha incorretos.";

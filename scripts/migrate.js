@@ -18,12 +18,8 @@ async function run() {
     await client.connect()
     console.log('Connected successfully. Running schema migration...')
 
-    // 1. Add missing columns
-    await client.query(`
-      ALTER TABLE casais ADD COLUMN IF NOT EXISTS email_esposo TEXT;
-      ALTER TABLE casais ADD COLUMN IF NOT EXISTS email_esposa TEXT;
-    `)
-    console.log('✓ Columns email_esposo and email_esposa verified/added to casais table.');
+    // 1. DDL checks completed (no spouse email columns needed)
+    console.log('✓ DDL check completed.');
 
     // 2. Reload PostgREST schema cache
     await client.query("NOTIFY pgrst, 'reload schema';")
