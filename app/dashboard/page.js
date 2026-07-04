@@ -674,8 +674,8 @@ export default function Dashboard() {
                   </button>
 
                   <button
-                    onClick={() => alert('Reprogramação Comportamental: Funcionalidade em desenvolvimento para futuras versões.')}
-                    style={{ ...styles.btnFooterNav, background: '#ECEFF1', color: '#78909C', borderColor: '#CFD8DC', cursor: 'not-allowed' }}
+                    onClick={() => { setModalAberto(false); router.push(`/dashboard/reprogramacao?id=${modalCasal.id}`); }}
+                    style={styles.btnFooterNav}
                   >
                     Reprogramação Comportamental
                   </button>

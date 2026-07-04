@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { calcularPercentuais } from '../../lib/perguntas'
 import { gerarRelatorioHTML, gerarRelatorioConsultor } from '../../lib/relatorio'
+import { gerarGuia90Dias, gerarImpressaoGuiaHTML } from '../../lib/reprogramacao'
 
 export default function RelatorioFinalPage() {
   return (
@@ -217,6 +218,36 @@ function RelatorioFinalContent() {
     }, 500)
   }
 
+  const handleImprimirReprog = (tipo) => {
+    if (!casal || !pctEsposo || !pctEsposa) return
+    const scores = tipo === 'esposo' ? pctEsposo : pctEsposa
+    const nome = tipo === 'esposo' ? casal.nome_esposo : casal.nome_esposa
+    const nomeParceiro = tipo === 'esposo' ? casal.nome_esposa : casal.nome_esposo
+    
+    const dadosGuia = gerarGuia90Dias(nome, tipo, nomeParceiro, scores)
+    const htmlConteudo = gerarImpressaoGuiaHTML(dadosGuia)
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'absolute'
+    iframe.style.width = '0px'
+    iframe.style.height = '0px'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow.document
+    doc.open()
+    doc.write(htmlConteudo)
+    doc.close()
+
+    setTimeout(() => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      setTimeout(() => {
+        document.body.removeChild(iframe)
+      }, 1000)
+    }, 500)
+  }
+
   if (erro) return (
     <div style={styles.errorContainer}>
       <div style={styles.errorCard}>
@@ -318,6 +349,30 @@ function RelatorioFinalContent() {
               <button onClick={() => handleImprimir('esposa')} style={styles.btnImprimir} disabled={loadingPrint}>
                 Imprimir Relatório
               </button>
+            </div>
+          </div>
+
+          {/* Card 4: Reprogramação Comportamental */}
+          <div style={styles.reportCard}>
+            <div style={styles.cardHeader}>
+              <span style={{ ...styles.cardBadge, background: 'rgba(201, 168, 76, 0.15)', color: '#C9A84C' }}>Planejamento Terapêutico</span>
+              <h2 style={styles.cardTitle}>Reprogramação Comportamental</h2>
+            </div>
+            <p style={styles.cardDesc}>
+              Programa de exercícios práticos, leituras de autoanálise e rituais de sintonia diários focado nas menores pontuações do casal.
+            </p>
+            <div style={styles.cardActions}>
+              <button onClick={() => router.push(`/dashboard/reprogramacao?id=${casal.id}`)} style={styles.btnDownload}>
+                Acessar Painel Interativo
+              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => handleImprimirReprog('esposo')} style={{ ...styles.btnImprimir, flex: 1, padding: '12px 6px', fontSize: '12.5px' }}>
+                  Imprimir (Esposo)
+                </button>
+                <button onClick={() => handleImprimirReprog('esposa')} style={{ ...styles.btnImprimir, flex: 1, padding: '12px 6px', fontSize: '12.5px' }}>
+                  Imprimir (Esposa)
+                </button>
+              </div>
             </div>
           </div>
         </div>
