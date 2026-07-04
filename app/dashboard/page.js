@@ -110,14 +110,14 @@ function AdminDashboardView() {
       // 1. Separar casais de clientes comuns
       const casaisClientes = casaisData.filter(c => {
         const p = c.plano || ''
-        return !p.startsWith('afiliado') && !p.startsWith('analista') && !p.startsWith('super_admin')
+        return !p.startsWith('afiliado') && !p.startsWith('analista') && !p.startsWith('terapeuta') && !p.startsWith('psicanalista') && !p.startsWith('super_admin')
       })
       setCasais(casaisClientes)
 
       // 2. Separar profissionais/afiliados
       const profs = casaisData.filter(c => {
         const p = c.plano || ''
-        return p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin')
+        return p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('terapeuta') || p.startsWith('psicanalista') || p.startsWith('super_admin')
       })
 
       // 3. Calcular Indicadores Globais
@@ -169,8 +169,8 @@ function AdminDashboardView() {
   const exportarCSV = () => {
     if (casais.length === 0) return
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-      + "Nome Esposo;Email Esposo;Nome Esposa;Email Esposa;Plano;Status;Criado Em\n"
-      + casais.map(c => `"${c.nome_esposo || ''}";"${c.email_esposo || ''}";"${c.nome_esposa || ''}";"${c.email_esposa || ''}";"${c.plano || ''}";"${c.status || ''}";"${formatarData(c.created_at)}"`).join("\n")
+      + "Nome Esposo;Nome Esposa;Plano;Status;Criado Em\n"
+      + casais.map(c => `"${c.nome_esposo || ''}";"${c.nome_esposa || ''}";"${c.plano || ''}";"${c.status || ''}";"${formatarData(c.created_at)}"`).join("\n")
     
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
@@ -228,9 +228,6 @@ function AdminDashboardView() {
       plano: plano,
       status: 'aguardando'
     }
-
-    if (emailEsposo) insertData.email_esposo = emailEsposo
-    if (emailEsposa) insertData.email_esposa = emailEsposa
 
     try {
       const { data, error } = await supabase
@@ -438,8 +435,6 @@ function AdminDashboardView() {
                         <span style={adminStyles.nomeEsposa}>{casal.nome_esposa || '(Pendente)'}</span>
                       </div>
                       <div style={adminStyles.contatoMeta}>
-                        <span style={adminStyles.emailText}>{casal.email_esposo || casal.email_esposa || 'Sem e-mail'}</span>
-                        <span style={adminStyles.dataSeparator}>·</span>
                         <span style={adminStyles.dataText}>Início: {formatarData(casal.created_at)}</span>
                       </div>
                     </div>
@@ -675,7 +670,7 @@ function AfiliadoDashboardView() {
       const { data: profissionais, error: errorPro } = await supabase
         .from('casais')
         .select('*')
-        .eq('email_esposo', emailLogado)
+        .eq('nome_esposa', emailLogado)
 
       if (errorPro || !profissionais || profissionais.length === 0) {
         router.push('/login')
@@ -685,7 +680,7 @@ function AfiliadoDashboardView() {
       const pro = profissionais[0]
       const planoRaw = pro.plano || ''
       const partes = planoRaw.split(':')
-      const papel = partes[0] === 'analista' ? 'Analista' : 'Afiliado'
+      const papel = partes[0] === 'analista' ? 'Analista' : partes[0] === 'terapeuta' ? 'Terapeuta de Casal' : partes[0] === 'psicanalista' ? 'Psicanalista' : 'Afiliado'
       const saldo = partes[1] ? parseInt(partes[1]) || 0 : 0
 
       setPerfil({
@@ -738,9 +733,6 @@ function AfiliadoDashboardView() {
       plano: planoConcatenado,
       status: 'aguardando'
     }
-
-    if (emailEsposo) insertData.email_esposo = emailEsposo
-    if (emailEsposa) insertData.email_esposa = emailEsposa
 
     try {
       const { data, error } = await supabase

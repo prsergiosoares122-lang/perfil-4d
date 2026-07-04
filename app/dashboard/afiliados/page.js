@@ -20,7 +20,7 @@ export default function AfiliadosPage() {
   const [whatsapp, setWhatsapp] = useState('')
   const [senha, setSenha] = useState('')
   const [senhaVisivel, setSenhaVisivel] = useState(false)
-  const [papel, setPapel] = useState('Afiliado')
+  const [papel, setPapel] = useState('Analista')
   const [relatoriosIniciais, setRelatoriosIniciais] = useState('10')
 
   // Campos de Ajuste de Relatórios (Modal)
@@ -69,27 +69,28 @@ export default function AfiliadosPage() {
       const mapeados = (data || [])
         .filter(item => {
           const p = item.plano || ''
-          return p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('super_admin')
+          return p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('terapeuta') || p.startsWith('psicanalista') || p.startsWith('super_admin')
         })
         .map(item => {
           const planoRaw = item.plano || ''
-          let pName = 'Afiliado'
+          let pName = 'Analista'
           let relatorios = 0
           if (planoRaw.startsWith('super_admin')) {
             pName = 'Super Admin'
             relatorios = 'Ilimitados'
           } else {
             const partes = planoRaw.split(':')
-            pName = partes[0] === 'analista' ? 'Analista' : 'Afiliado'
+            const basePapel = partes[0]
+            pName = basePapel === 'analista' ? 'Analista' : basePapel === 'terapeuta' ? 'Terapeuta de Casal' : basePapel === 'psicanalista' ? 'Psicanalista' : 'Afiliado'
             relatorios = partes[1] ? parseInt(partes[1]) || 0 : 0
           }
 
           return {
             id: item.id,
             nome: item.nome_esposo,
-            email: item.email_esposo,
-            whatsapp: item.nome_esposa || '',
-            senha: item.email_esposa || '',
+            email: item.nome_esposa, // Email is stored in nome_esposa
+            whatsapp: '',
+            senha: '',
             papel: pName,
             relatorios: relatorios,
             status: item.status === 'Inativo' || item.status === 'Bloqueado' ? 'Inativo' : 'Ativo',
@@ -117,16 +118,14 @@ export default function AfiliadosPage() {
       }
 
       // 2. Inserir registro correspondente no banco
-      const basePapel = papel === 'Super Admin' ? 'super_admin' : papel.toLowerCase()
+      const basePapel = papel === 'Super Admin' ? 'super_admin' : papel === 'Terapeuta de Casal' ? 'terapeuta' : papel === 'Psicanalista' ? 'psicanalista' : papel.toLowerCase()
       const planoDb = basePapel === 'super_admin' ? 'super_admin' : `${basePapel}:${relatoriosIniciais}`
 
       const { error: dbError } = await supabase
         .from('casais')
         .insert({
           nome_esposo: nome,
-          email_esposo: email,
-          nome_esposa: whatsapp,
-          email_esposa: senha,
+          nome_esposa: email,
           plano: planoDb,
           status: 'Ativo'
         })
@@ -139,7 +138,7 @@ export default function AfiliadosPage() {
       setEmail('')
       setWhatsapp('')
       setSenha('')
-      setPapel('Afiliado')
+      setPapel('Analista')
       setRelatoriosIniciais('10')
       setModalAberto(false)
       alert('Afiliado cadastrado com sucesso!')
@@ -440,9 +439,9 @@ export default function AfiliadosPage() {
                   value={papel} 
                   onChange={e => setPapel(e.target.value)}
                 >
-                  <option value="Afiliado">Afiliado</option>
                   <option value="Analista">Analista</option>
-                  <option value="Super Admin">Super Admin</option>
+                  <option value="Terapeuta de Casal">Terapeuta de Casal</option>
+                  <option value="Psicanalista">Psicanalista</option>
                 </select>
               </div>
 

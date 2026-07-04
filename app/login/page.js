@@ -22,7 +22,7 @@ export default function LoginPage() {
       const { data: profs, error: profError } = await supabase
         .from('casais')
         .select('*')
-        .eq('email_esposo', email)
+        .eq('nome_esposa', email)
       
       if (!profError && profs && profs.length > 0) {
         const p = profs[0].plano || ''

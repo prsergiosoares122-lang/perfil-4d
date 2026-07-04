@@ -21,7 +21,7 @@ export default function AdminPage() {
   const [whatsapp, setWhatsapp] = useState('')
   const [senha, setSenha] = useState('')
   const [senhaVisivel, setSenhaVisivel] = useState(false)
-  const [papel, setPapel] = useState('Afiliado')
+  const [papel, setPapel] = useState('Analista')
   const [relatoriosIniciais, setRelatoriosIniciais] = useState('10')
 
   // Campos de Ajuste de Relatórios (Modal Olho)
@@ -63,20 +63,38 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from('casais')
         .select('*')
-        .in('plano', ['afiliado', 'analista', 'super_admin'])
       if (error) throw error
 
-      const mapeados = (data || []).map(item => ({
-        id: item.id,
-        nome: item.nome_esposo,
-        email: item.email_esposo,
-        whatsapp: item.nome_esposa || '',
-        senha: item.email_esposa || '',
-        papel: item.plano === 'super_admin' ? 'Super Admin' : item.plano === 'analista' ? 'Analista' : 'Afiliado',
-        relatorios: item.plano === 'super_admin' ? 'Ilimitados' : 10,
-        status: item.status === 'Bloqueado' ? 'Bloqueado' : 'Ativo',
-        historico: []
-      }))
+      const mapeados = (data || [])
+        .filter(item => {
+          const p = item.plano || ''
+          return p.startsWith('afiliado') || p.startsWith('analista') || p.startsWith('terapeuta') || p.startsWith('psicanalista') || p.startsWith('super_admin')
+        })
+        .map(item => {
+          const planoRaw = item.plano || ''
+          let pName = 'Analista'
+          let relatorios = 0
+          if (planoRaw.startsWith('super_admin')) {
+            pName = 'Super Admin'
+            relatorios = 'Ilimitados'
+          } else {
+            const partes = planoRaw.split(':')
+            const basePapel = partes[0]
+            pName = basePapel === 'analista' ? 'Analista' : basePapel === 'terapeuta' ? 'Terapeuta de Casal' : basePapel === 'psicanalista' ? 'Psicanalista' : 'Afiliado'
+            relatorios = partes[1] ? parseInt(partes[1]) || 0 : 0
+          }
+          return {
+            id: item.id,
+            nome: item.nome_esposo,
+            email: item.nome_esposa, // Email is stored in nome_esposa
+            whatsapp: '',
+            senha: '',
+            papel: pName,
+            relatorios: relatorios,
+            status: item.status === 'Bloqueado' ? 'Bloqueado' : 'Ativo',
+            historico: []
+          }
+        })
       setAfiliados(mapeados)
     } catch (err) {
       console.error(err)
@@ -96,14 +114,13 @@ export default function AdminPage() {
       if (signUpError) throw new Error('Erro ao criar credenciais de acesso: ' + signUpError.message)
 
       // 2. Inserir registro correspondente no banco
-      const planoDb = papel === 'Super Admin' ? 'super_admin' : papel === 'Analista' ? 'analista' : 'afiliado'
+      const basePapel = papel === 'Super Admin' ? 'super_admin' : papel === 'Terapeuta de Casal' ? 'terapeuta' : papel === 'Psicanalista' ? 'psicanalista' : papel.toLowerCase()
+      const planoDb = basePapel === 'super_admin' ? 'super_admin' : `${basePapel}:10`
       const { error: dbError } = await supabase
         .from('casais')
         .insert({
           nome_esposo: nome,
-          email_esposo: email,
-          nome_esposa: whatsapp,
-          email_esposa: senha,
+          nome_esposa: email,
           plano: planoDb,
           status: 'Ativo'
         })
@@ -116,7 +133,7 @@ export default function AdminPage() {
       setEmail('')
       setWhatsapp('')
       setSenha('')
-      setPapel('Afiliado')
+      setPapel('Analista')
       setModalAberto(false)
       alert('Profissional cadastrado com sucesso!')
     } catch (err) {
@@ -473,9 +490,9 @@ export default function AdminPage() {
                   value={papel} 
                   onChange={e => setPapel(e.target.value)}
                 >
-                  <option value="Afiliado">Afiliado</option>
                   <option value="Analista">Analista</option>
-                  <option value="Super Admin">Super Admin</option>
+                  <option value="Terapeuta de Casal">Terapeuta de Casal</option>
+                  <option value="Psicanalista">Psicanalista</option>
                 </select>
               </div>
 

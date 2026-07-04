@@ -69,9 +69,7 @@ export default function RelatoriosPage() {
   const casaisFiltrados = casais.filter(c => {
     const termo = busca.toLowerCase()
     return c.nome_esposo.toLowerCase().includes(termo) || 
-           c.nome_esposa.toLowerCase().includes(termo) || 
-           (c.email_esposo && c.email_esposo.toLowerCase().includes(termo)) ||
-           (c.email_esposa && c.email_esposa.toLowerCase().includes(termo))
+           c.nome_esposa.toLowerCase().includes(termo)
   })
 
   return (
@@ -130,7 +128,7 @@ export default function RelatoriosPage() {
                       <td style={styles.td}>
                         <div style={styles.namesWrapper}>
                           <span style={styles.namesText}>{nomesCasal}</span>
-                          <span style={styles.emailSubText}>{c.email_esposo || c.email_esposa || 'Sem e-mail cadastrado'}</span>
+                          <span style={styles.emailSubText}>Sem e-mail cadastrado</span>
                         </div>
                       </td>
 

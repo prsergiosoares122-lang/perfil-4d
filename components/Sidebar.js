@@ -30,7 +30,7 @@ export default function Sidebar() {
         const { data } = await supabase
           .from('casais')
           .select('plano')
-          .eq('email_esposo', email)
+          .eq('nome_esposa', email)
           .limit(1)
         if (data && data[0]) {
           const p = data[0].plano || ''
