@@ -49,7 +49,7 @@ export default function Sidebar() {
   }
 
   const allItems = [
-    { label: 'Painel', path: role === 'Afiliado' ? '/dashboard/afiliado' : '/dashboard/painel' },
+    { label: 'Painel', path: (role === 'Afiliado' || role === 'Analista') ? '/dashboard' : '/dashboard/painel' },
     { label: 'Casais', path: '/dashboard' },
     { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
@@ -64,7 +64,7 @@ export default function Sidebar() {
   ]
 
   const menuItems = allItems.filter(item => {
-    if (role === 'Afiliado') {
+    if (role === 'Afiliado' || role === 'Analista') {
       const allowed = ['Painel', 'Tutorial']
       return allowed.includes(item.label)
     }

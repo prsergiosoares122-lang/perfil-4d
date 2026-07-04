@@ -1,10 +1,37 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function ConfiguracoesPage() {
+  const router = useRouter()
   const [abaAtiva, setAbaAtiva] = useState('perfil')
   const [loading, setLoading] = useState(false)
   const [avisoSucesso, setAvisoSucesso] = useState('')
+  const [autorizado, setAutorizado] = useState(false)
+
+  useEffect(() => {
+    verificarAuth()
+  }, [])
+
+  async function verificarAuth() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+      return
+    }
+    const email = session.user.email.toLowerCase()
+    const isAdmin = email === 'prsergiosoares122@gmail.com' ||
+                    email === 'thiago.medeiros@perfil4d.com' ||
+                    email === 'sergio.soares@perfil4d.com' ||
+                    email === 'sergio@email.com' ||
+                    email.includes('admin')
+    if (!isAdmin) {
+      router.push('/dashboard')
+    } else {
+      setAutorizado(true)
+    }
+  }
 
   // Form Perfil
   const [nome, setNome] = useState('Sérgio Soares')
@@ -75,6 +102,8 @@ export default function ConfiguracoesPage() {
       dispararSucesso('Preferências de notificação salvas com sucesso!')
     }, 800)
   }
+
+  if (!autorizado) return null
 
   return (
     <div style={styles.container}>

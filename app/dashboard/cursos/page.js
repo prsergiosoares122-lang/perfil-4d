@@ -1,8 +1,35 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function CursosPage() {
+  const router = useRouter()
   const [filtro, setFiltro] = useState('todos')
+  const [autorizado, setAutorizado] = useState(false)
+
+  useEffect(() => {
+    verificarAuth()
+  }, [])
+
+  async function verificarAuth() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+      return
+    }
+    const email = session.user.email.toLowerCase()
+    const isAdmin = email === 'prsergiosoares122@gmail.com' ||
+                    email === 'thiago.medeiros@perfil4d.com' ||
+                    email === 'sergio.soares@perfil4d.com' ||
+                    email === 'sergio@email.com' ||
+                    email.includes('admin')
+    if (!isAdmin) {
+      router.push('/dashboard')
+    } else {
+      setAutorizado(true)
+    }
+  }
   
   // Lista de cursos com aulas aninhadas
   const [cursos, setCursos] = useState([
@@ -148,6 +175,8 @@ export default function CursosPage() {
     if (filtro === 'todos') return true
     return c.status === filtro
   })
+
+  if (!autorizado) return null
 
   return (
     <div style={styles.container}>

@@ -16,7 +16,19 @@ export default function FinanceiroPage() {
 
   async function verificarAuth() {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) router.push('/login')
+    if (!session) {
+      router.push('/login')
+      return
+    }
+    const email = session.user.email.toLowerCase()
+    const isAdmin = email === 'prsergiosoares122@gmail.com' ||
+                    email === 'thiago.medeiros@perfil4d.com' ||
+                    email === 'sergio.soares@perfil4d.com' ||
+                    email === 'sergio@email.com' ||
+                    email.includes('admin')
+    if (!isAdmin) {
+      router.push('/dashboard')
+    }
   }
 
   async function carregarFinanceiro() {
