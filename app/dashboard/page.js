@@ -294,8 +294,6 @@ function AdminDashboardView() {
       
       setNomeEsposo('')
       setNomeEsposa('')
-      setEmailEsposo('')
-      setEmailEsposa('')
       setPlano('relatorio')
     } catch (err) {
       console.error(err)
@@ -507,6 +505,24 @@ function AdminDashboardView() {
                       >
                         📈 Ver Relatórios
                       </button>
+                      {temEsposo && temEsposa && (
+                        <button 
+                          onClick={() => router.push(`/dashboard/reprogramacao?id=${casal.id}`)}
+                          style={{
+                            padding: '10px 14px',
+                            background: '#FAF9F6',
+                            color: '#0D1B3E',
+                            border: '1px solid #C9A84C',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          🧠 Guia 90D
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -560,16 +576,8 @@ function AdminDashboardView() {
                   <input style={adminStyles.modalInput} value={nomeEsposo} onChange={e => setNomeEsposo(e.target.value)} placeholder="Nome do cônjuge" required />
                 </div>
                 <div style={adminStyles.modalGrupo}>
-                  <label style={adminStyles.modalLabel}>E-mail do Esposo</label>
-                  <input style={adminStyles.modalInput} type="email" value={emailEsposo} onChange={e => setEmailEsposo(e.target.value)} placeholder="email@esposo.com" />
-                </div>
-                <div style={adminStyles.modalGrupo}>
                   <label style={adminStyles.modalLabel}>Nome da Esposa</label>
                   <input style={adminStyles.modalInput} value={nomeEsposa} onChange={e => setNomeEsposa(e.target.value)} placeholder="Nome da cônjuge" required />
-                </div>
-                <div style={adminStyles.modalGrupo}>
-                  <label style={adminStyles.modalLabel}>E-mail da Esposa</label>
-                  <input style={adminStyles.modalInput} type="email" value={emailEsposa} onChange={e => setEmailEsposa(e.target.value)} placeholder="email@esposa.com" />
                 </div>
                 <div style={adminStyles.modalGrupo}>
                   <label style={adminStyles.modalLabel}>Tipo de Relatório</label>
@@ -687,8 +695,6 @@ function AfiliadoDashboardView() {
   // Form de criação
   const [nomeEsposo, setNomeEsposo] = useState('')
   const [nomeEsposa, setNomeEsposa] = useState('')
-  const [emailEsposo, setEmailEsposo] = useState('')
-  const [emailEsposa, setEmailEsposa] = useState('')
   const [tipoPlano, setTipoPlano] = useState('relatorio')
   const [saving, setSaving] = useState(false)
   const [erroModal, setErroModal] = useState('')
@@ -797,8 +803,6 @@ function AfiliadoDashboardView() {
 
       setNomeEsposo('')
       setNomeEsposa('')
-      setEmailEsposo('')
-      setEmailEsposa('')
       setTipoPlano('relatorio')
 
       await carregarDadosDashboard()
@@ -995,16 +999,8 @@ function AfiliadoDashboardView() {
                   <input style={afiliadoStyles.modalInput} value={nomeEsposo} onChange={e => setNomeEsposo(e.target.value)} placeholder="Nome dele" required />
                 </div>
                 <div style={afiliadoStyles.modalGrupo}>
-                  <label style={afiliadoStyles.modalLabel}>E-mail do Esposo (Opcional)</label>
-                  <input style={afiliadoStyles.modalInput} type="email" value={emailEsposo} onChange={e => setEmailEsposo(e.target.value)} placeholder="Email dele" />
-                </div>
-                <div style={afiliadoStyles.modalGrupo}>
                   <label style={afiliadoStyles.modalLabel}>Nome da Esposa</label>
                   <input style={afiliadoStyles.modalInput} value={nomeEsposa} onChange={e => setNomeEsposa(e.target.value)} placeholder="Nome dela" required />
-                </div>
-                <div style={afiliadoStyles.modalGrupo}>
-                  <label style={afiliadoStyles.modalLabel}>E-mail da Esposa (Opcional)</label>
-                  <input style={afiliadoStyles.modalInput} type="email" value={emailEsposa} onChange={e => setEmailEsposa(e.target.value)} placeholder="Email dela" />
                 </div>
                 <div style={afiliadoStyles.modalGrupo}>
                   <label style={afiliadoStyles.modalLabel}>Tipo de Plano</label>

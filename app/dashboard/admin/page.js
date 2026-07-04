@@ -45,11 +45,24 @@ export default function AdminPage() {
       return
     }
     const email = session.user.email.toLowerCase()
+    
+    // Obter dados do usuário para verificar plano
+    const { data: userData } = await supabase
+        .from('casais')
+        .select('plano')
+        .eq('nome_esposa', email)
+        .single()
+    
+    const userPlano = userData?.plano || ''
+    
     const isSuperAdmin = email === 'prsergiosoares122@gmail.com' ||
                          email === 'thiago.medeiros@perfil4d.com' ||
                          email === 'sergio.soares@perfil4d.com' ||
                          email === 'sergio@email.com' ||
-                         email.includes('admin')
+                         email === 'pr_sergiosoares@hotmail.com' ||
+                         email.includes('admin') ||
+                         userPlano.startsWith('super_admin')
+
     if (!isSuperAdmin) {
       alert('Acesso Negado: Esta área é restrita a Super Administradores.')
       router.push('/dashboard')

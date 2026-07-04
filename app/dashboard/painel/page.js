@@ -24,11 +24,26 @@ export default function PainelPage() {
       return
     }
     const email = session.user.email.toLowerCase()
+
+    const { data } = await supabase
+      .from('casais')
+      .select('plano')
+      .eq('nome_esposa', email)
+      .limit(1)
+
+    let userPlano = ''
+    if (data && data[0]) {
+      userPlano = data[0].plano || ''
+    }
+
     const isAdmin = email === 'prsergiosoares122@gmail.com' ||
                     email === 'thiago.medeiros@perfil4d.com' ||
                     email === 'sergio.soares@perfil4d.com' ||
                     email === 'sergio@email.com' ||
-                    email.includes('admin')
+                    email === 'pr_sergiosoares@hotmail.com' ||
+                    email.includes('admin') ||
+                    userPlano.startsWith('super_admin')
+
     if (!isAdmin) {
       router.push('/dashboard')
     } else {
