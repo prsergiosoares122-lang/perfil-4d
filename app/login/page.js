@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { supabase } from '../../lib/supabase';
@@ -12,6 +12,16 @@ export default function LoginPage() {
   const [erro, setErro] = useState('');
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [mostrarEsqueciSenhaModal, setMostrarEsqueciSenhaModal] = useState(false);
+
+  useEffect(() => {
+    // 4. Limpeza de Cache/Sessões antigas
+    supabase.auth.signOut().then(() => {
+      localStorage.removeItem('perfil4d_logged_user');
+      console.log("Sessões anteriores e cookies limpos com sucesso.");
+    }).catch(e => {
+      console.log("Erro ao limpar sessões anteriores:", e.message);
+    });
+  }, []);
 
   async function gerarHashSenha(senha) {
     if (!senha) return ''
@@ -39,7 +49,7 @@ export default function LoginPage() {
       console.log("Email:", formattedEmail);
 
       // 1. Buscar conta na tabela casais
-      const { data: profs, error: profError } = await supabase
+      let { data: profs, error: profError } = await supabase
         .from('casais')
         .select('*')
         .eq('nome_esposa', formattedEmail)
@@ -47,6 +57,40 @@ export default function LoginPage() {
       console.log("Database result (profs):", profs);
       if (profError) {
         console.log("Database query error:", profError.message);
+      }
+
+      // Auto-recuperação/criação caso a conta não exista na tabela casais (cadastros diretos via auth)
+      if (!profs || profs.length === 0) {
+        console.log("Nenhum perfil correspondente na tabela casais. Verificando privilégios...");
+        const isSuperAdminEmail = 
+          formattedEmail === 'prsergiosoares122@gmail.com' ||
+          formattedEmail === 'thiago.medeiros@perfil4d.com' ||
+          formattedEmail === 'sergio.soares@perfil4d.com' ||
+          formattedEmail === 'sergio@email.com' ||
+          formattedEmail === 'pr_sergiosoares@hotmail.com' ||
+          formattedEmail.includes('admin')
+          
+        const salt = bcrypt.genSaltSync(10)
+        const bcryptHash = bcrypt.hashSync(password, salt)
+        const planoDb = isSuperAdminEmail ? `super_admin:${bcryptHash}:${password}` : `analista:10:${bcryptHash}:${password}`
+        
+        console.log("Auto-gerando perfil na tabela casais com plano:", planoDb);
+        const { data: inserted, error: insertError } = await supabase
+          .from('casais')
+          .insert({
+            nome_esposo: isSuperAdminEmail ? 'Sergio Soares' : 'Profissional',
+            nome_esposa: formattedEmail,
+            plano: planoDb,
+            status: 'Ativo'
+          })
+          .select()
+          
+        if (!insertError && inserted && inserted[0]) {
+          profs = inserted
+          console.log("Perfil auto-gerado com sucesso no login:", inserted[0]);
+        } else {
+          console.error("Erro ao criar perfil de auto-recuperação no login:", insertError);
+        }
       }
 
       let userRole = 'Nenhum'
