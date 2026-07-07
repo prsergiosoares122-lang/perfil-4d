@@ -11,11 +11,17 @@ export default function Home() {
   }, [])
 
   async function checarSessao() {
-    const { data: { session } } = await supabase.auth.getSession()
+    // Verifica se o supabase foi importado corretamente
+    if (!supabase || !supabase.auth) {
+      console.error('Supabase não inicializado');
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      router.push('/dashboard')
+      router.push('/dashboard');
     } else {
-      router.push('/login')
+      router.push('/login');
     }
   }
 
