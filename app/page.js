@@ -11,13 +11,15 @@ export default function Home() {
   }, [])
 
   async function checarSessao() {
-    // Verifica se o supabase foi importado corretamente
-    if (!supabase || !supabase.auth) {
-      console.error('Supabase não inicializado');
+    // Verificação explícita de nulo que satisfaz o TypeScript
+    if (supabase === null || supabase === undefined) {
+      console.error('Supabase client not initialized');
       return;
     }
 
+    // Acessando o auth com segurança após a verificação
     const { data: { session } } = await supabase.auth.getSession();
+
     if (session) {
       router.push('/dashboard');
     } else {
