@@ -71,7 +71,7 @@ export default function Sidebar() {
     }
   }
 
-const menuBase = [
+  const menuBase = [
     { label: 'Painel', path: '/dashboard' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
     { label: 'Cursos', path: '/dashboard/cursos' },
@@ -79,7 +79,7 @@ const menuBase = [
   ];
 
   const menuAdmin = [
-    { label: 'Casais', path: '/dashboard' }, 
+    { label: 'Casais', path: '/dashboard' },
     { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
     { label: 'Perguntas', path: '/dashboard/perguntas' },
@@ -87,10 +87,15 @@ const menuBase = [
   ];
 
   const menuItems = isSuperAdmin ? [...menuBase, ...menuAdmin] : menuBase;
+  ];
 
+  // 3. A lógica definitiva: se for SuperAdmin junta os dois, se não for, mostra só o básico
+  const menuItems = isSuperAdmin ? [...menuBase, ...menuAdmin] : menuBase;
   return (
     <div style={styles.sidebar}>
       <div style={styles.header}>
+        <h1 style={styles.logo}>PERFIL 4D</h1>
+        <p style={styles.logoSub}>Painel Psicanálise</p>
       </div>
 
       <div style={styles.navContainer}>
