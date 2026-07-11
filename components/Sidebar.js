@@ -72,21 +72,20 @@ export default function Sidebar() {
   }
 
   const allItems = [
-    { label: 'Painel', path: (role === 'Afiliado' || role === 'Analista' || role === 'Terapeuta de Casal' || role === 'Psicanalista') ? '/dashboard' : '/dashboard/painel' },
-    { label: 'Casais', path: '/dashboard' },
-    { label: 'Afiliados', path: '/dashboard/afiliados' },
+    { label: 'Painel', path: '/dashboard' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
     { label: 'Cursos', path: '/dashboard/cursos' },
-    { label: 'Configurações', path: '/dashboard/configuracoes' },
     { label: 'Relatórios', path: '/dashboard/relatorios' },
-    const menuItems = allItems.filter(item => {
-      // Se for Super Admin, mostra tudo
-      if (isSuperAdmin) return true;
+    ...(isSuperAdmin ? [
+      { label: 'Casais', path: '/dashboard' },
+      { label: 'Afiliados', path: '/dashboard/afiliados' },
+      { label: 'Configurações', path: '/dashboard/configuracoes' },
+      { label: 'Perguntas', path: '/dashboard/perguntas' },
+      { label: 'Admin', path: '/dashboard/admin' }
+    ] : [])
+  ];
 
-      // Se não for, limita aos itens permitidos
-      const allowed = ['Painel', 'Tutorial', 'Cursos', 'Relatórios'];
-      return allowed.includes(item.label);
-    });
+  const menuItems = allItems;
 
 
 
