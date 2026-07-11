@@ -78,12 +78,11 @@ export default function Sidebar() {
     { label: 'Relatórios', path: '/dashboard/relatorios' }
   ];
 
-  const menuItems = allItems;
-  { label: 'Configurações', path: '/dashboard/configuracoes' },
-  { label: 'Perguntas', path: '/dashboard/perguntas' },
-  { label: 'Admin', path: '/dashboard/admin' }
-    ] : [])
-  ];
+  const menuItems = [...allItems, ...(isSuperAdmin ? [
+    { label: 'Configurações', path: '/dashboard/configuracoes' },
+    { label: 'Perguntas', path: '/dashboard/perguntas' },
+    { label: 'Admin', path: '/dashboard/admin' }
+  ] : [])];
 
   const menuItems = allItems;
 
