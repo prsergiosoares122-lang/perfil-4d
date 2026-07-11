@@ -17,7 +17,7 @@ export default function Sidebar() {
   async function checarRole() {
     let email = ''
     let userPlano = ''
-    
+
     const { data: { session } } = await supabase.auth.getSession()
     if (session && session.user) {
       email = session.user.email.toLowerCase()
@@ -39,7 +39,7 @@ export default function Sidebar() {
           .select('plano')
           .eq('nome_esposa', email)
           .limit(1)
-        
+
         if (data && data[0]) {
           userPlano = data[0].plano || ''
         }
@@ -79,24 +79,24 @@ export default function Sidebar() {
     { label: 'Cursos', path: '/dashboard/cursos' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
     { label: 'Relatórios', path: '/dashboard/relatorios' },
-    ...(isSuperAdmin ? [
-      { label: 'Perguntas', path: '/dashboard/perguntas' },
-      { label: 'Admin', path: '/dashboard/admin' }
-    ] : [])
-  ]
+    const menuItems = allItems.filter(item => {
+      // Se for Super Admin, mostra tudo
+      if (isSuperAdmin) return true;
+
+      // Se não for, limita aos itens permitidos
+      const allowed = ['Painel', 'Tutorial', 'Cursos', 'Configurações', 'Relatórios'];
+      return allowed.includes(item.label);
+    });
 
   const menuItems = allItems.filter(item => {
-    if (role === 'Afiliado' || role === 'Analista' || role === 'Terapeuta de Casal' || role === 'Psicanalista') {
-      const allowed = ['Painel', 'Tutorial']
-      return allowed.includes(item.label)
-    }
-    return true
-  })
+    // Se for Super Admin, mostra tudo
+    if (isSuperAdmin) return true;
 
-  async function sair() {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
+    // Se não for, limita aos itens permitidos
+    const allowed = ['Painel', 'Tutorial', 'Cursos', 'Configurações', 'Relatórios'];
+    return allowed.includes(item.label);
+  });
+
 
   return (
     <div style={styles.sidebar}>
@@ -104,7 +104,7 @@ export default function Sidebar() {
         <h1 style={styles.logo}>PERFIL 4D</h1>
         <p style={styles.logoSub}>Painel Psicanálise</p>
       </div>
-      
+
       <div style={styles.navContainer}>
         {menuItems.map((item, idx) => {
           const isActive = pathname === item.path
