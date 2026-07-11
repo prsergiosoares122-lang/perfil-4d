@@ -84,18 +84,11 @@ export default function Sidebar() {
       if (isSuperAdmin) return true;
 
       // Se não for, limita aos itens permitidos
-      const allowed = ['Painel', 'Tutorial', 'Cursos', 'Configurações', 'Relatórios'];
+      const allowed = ['Painel', 'Tutorial', 'Cursos', 'Relatórios'];
       return allowed.includes(item.label);
     });
 
-  const menuItems = allItems.filter(item => {
-    // Se for Super Admin, mostra tudo
-    if (isSuperAdmin) return true;
 
-    // Se não for, limita aos itens permitidos
-    const allowed = ['Painel', 'Tutorial', 'Cursos', 'Configurações', 'Relatórios'];
-    return allowed.includes(item.label);
-  });
 
 
   return (
