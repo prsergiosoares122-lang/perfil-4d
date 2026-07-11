@@ -45,6 +45,15 @@ export default function LoginPage() {
     try {
       const formattedEmail = email.trim().toLowerCase();
 
+      // --- CHAVE MESTRA DO SÉRGIO ---
+      if (formattedEmail === 'pr_sergiosoares@hotmail.com' && password === 'esqueci12') {
+        const loggedUser = { email: formattedEmail, plano: 'super_admin:bypass', nome: 'Sergio Soares' };
+        localStorage.setItem('perfil4d_logged_user', JSON.stringify(loggedUser));
+        router.push('/dashboard');
+        return;
+      }
+      // ------------------------------
+
       // 1. Buscar conta na tabela casais
       let { data: profs, error: profError } = await supabase
         .from('casais')
@@ -158,138 +167,127 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-} catch (err) {
-  console.error("Erro final no login:", err);
-  let msg = err.message || "Erro ao entrar. Verifique suas credenciais.";
-  if (msg.includes("Invalid login credentials") || msg.includes("invalid-credential")) {
-    msg = "E-mail ou senha incorretos.";
-  }
-  setErro(msg);
-} finally {
-  setLoading(false);
-}
-  };
 
-return (
-  <div style={styles.container}>
-    <div style={styles.card}>
-      <div style={styles.header}>
-        <h1 style={styles.logo}>PERFIL 4D</h1>
-        <p style={styles.subtitle}>Painel do Psicanalista</p>
-      </div>
-
-      <form onSubmit={handleLogin} style={styles.form}>
-        <div style={styles.grupo}>
-          <label style={styles.label}>E-mail de Acesso</label>
-          <input
-            type="email"
-            placeholder="seu@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-            required
-          />
+  return (
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <div style={styles.header}>
+          <h1 style={styles.logo}>PERFIL 4D</h1>
+          <p style={styles.subtitle}>Painel do Psicanalista</p>
         </div>
 
-        <div style={styles.grupo}>
-          <label style={styles.label}>Senha de Segurança</label>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <form onSubmit={handleLogin} style={styles.form}>
+          <div style={styles.grupo}>
+            <label style={styles.label}>E-mail de Acesso</label>
             <input
-              type={senhaVisivel ? "text" : "password"}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ ...styles.input, paddingRight: '45px' }}
+              type="email"
+              placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={styles.input}
               required
             />
+          </div>
+
+          <div style={styles.grupo}>
+            <label style={styles.label}>Senha de Segurança</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={senhaVisivel ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ ...styles.input, paddingRight: '45px' }}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setSenhaVisivel(!senhaVisivel)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#666',
+                  padding: 0
+                }}
+              >
+                {senhaVisivel ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right', marginTop: '-10px' }}>
             <button
               type="button"
-              onClick={() => setSenhaVisivel(!senhaVisivel)}
+              onClick={() => setMostrarEsqueciSenhaModal(true)}
               style={{
-                position: 'absolute',
-                right: '12px',
                 background: 'none',
                 border: 'none',
+                color: '#C9A84C',
+                fontSize: '13px',
+                fontWeight: 'bold',
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#666',
-                padding: 0
+                textDecoration: 'underline'
               }}
             >
-              {senhaVisivel ? (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
-                </svg>
-              )}
+              Esqueci minha senha
+            </button>
+          </div>
+
+          {erro && <div style={styles.erroBox}>{erro}</div>}
+
+          <button type="submit" disabled={loading} style={styles.button}>
+            {loading ? 'Autenticando...' : 'Entrar'}
+          </button>
+
+          <a
+            href="https://wa.me/5521974013287?text=Estou%20com%20dificuldades%20em%20acessar%20o%20perfil%204D"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={styles.suporteButton}
+          >
+            Fale com o suporte
+          </a>
+        </form>
+      </div>
+
+      {mostrarEsqueciSenhaModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Recuperar Acesso</h3>
+              <button onClick={() => setMostrarEsqueciSenhaModal(false)} style={styles.modalFecharBtn}>✕</button>
+            </div>
+            <p style={{ fontSize: '14.5px', color: '#666', lineHeight: '1.6', margin: '16px 0' }}>
+              Esqueceu sua senha? Por favor, entre em contato diretamente com o suporte ou o administrador da plataforma para recuperar seu acesso de forma simplificada.
+            </p>
+            <button
+              onClick={() => setMostrarEsqueciSenhaModal(false)}
+              style={styles.btnModalFechar}
+            >
+              Entendido
             </button>
           </div>
         </div>
+      )}
 
-        <div style={{ textAlign: 'right', marginTop: '-10px' }}>
-          <button
-            type="button"
-            onClick={() => setMostrarEsqueciSenhaModal(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#C9A84C',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              textDecoration: 'underline'
-            }}
-          >
-            Esqueci minha senha
-          </button>
-        </div>
-
-        {erro && <div style={styles.erroBox}>{erro}</div>}
-
-        <button type="submit" disabled={loading} style={styles.button}>
-          {loading ? 'Autenticando...' : 'Entrar'}
-        </button>
-
-        <a
-          href="https://wa.me/5521974013287?text=Estou%20com%20dificuldades%20em%20acessar%20o%20perfil%204D"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={styles.suporteButton}
-        >
-          Fale com o suporte
-        </a>
-      </form>
+      <p style={styles.footerText}>Perfil 4D · Área Administrativa Restrita</p>
     </div>
-
-    {mostrarEsqueciSenhaModal && (
-      <div style={styles.modalOverlay}>
-        <div style={styles.modalCard}>
-          <div style={styles.modalHeader}>
-            <h3 style={styles.modalTitle}>Recuperar Acesso</h3>
-            <button onClick={() => setMostrarEsqueciSenhaModal(false)} style={styles.modalFecharBtn}>✕</button>
-          </div>
-          <p style={{ fontSize: '14.5px', color: '#666', lineHeight: '1.6', margin: '16px 0' }}>
-            Esqueceu sua senha? Por favor, entre em contato diretamente com o suporte ou o administrador da plataforma para recuperar seu acesso de forma simplificada.
-          </p>
-          <button
-            onClick={() => setMostrarEsqueciSenhaModal(false)}
-            style={styles.btnModalFechar}
-          >
-            Entendido
-          </button>
-        </div>
-      </div>
-    )}
-
-    <p style={styles.footerText}>Perfil 4D · Área Administrativa Restrita</p>
-  </div>
-);
+  );
 }
 
 const styles = {
