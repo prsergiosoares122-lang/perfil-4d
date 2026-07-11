@@ -75,13 +75,13 @@ export default function Sidebar() {
     { label: 'Painel', path: '/dashboard' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
     { label: 'Cursos', path: '/dashboard/cursos' },
-    { label: 'Relatórios', path: '/dashboard/relatorios' },
-    ...(isSuperAdmin ? [
-      { label: 'Casais', path: '/dashboard' },
-      { label: 'Afiliados', path: '/dashboard/afiliados' },
-      { label: 'Configurações', path: '/dashboard/configuracoes' },
-      { label: 'Perguntas', path: '/dashboard/perguntas' },
-      { label: 'Admin', path: '/dashboard/admin' }
+    { label: 'Relatórios', path: '/dashboard/relatorios' }
+  ];
+
+  const menuItems = allItems;
+  { label: 'Configurações', path: '/dashboard/configuracoes' },
+  { label: 'Perguntas', path: '/dashboard/perguntas' },
+  { label: 'Admin', path: '/dashboard/admin' }
     ] : [])
   ];
 
