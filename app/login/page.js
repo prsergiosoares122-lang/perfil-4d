@@ -41,40 +41,30 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setErro('');
-    
+
     try {
-      const formattedEmail = email.trim().toLowerCase()
-      
-      console.log("=== LOGIN DEBUG ===");
-      console.log("Email:", formattedEmail);
+      const formattedEmail = email.trim().toLowerCase();
 
       // 1. Buscar conta na tabela casais
       let { data: profs, error: profError } = await supabase
         .from('casais')
         .select('*')
-        .eq('nome_esposa', formattedEmail)
-      
-      console.log("Database result (profs):", profs);
-      if (profError) {
-        console.log("Database query error:", profError.message);
-      }
+        .eq('nome_esposa', formattedEmail);
 
-      // Auto-recuperação/criação caso a conta não exista na tabela casais (cadastros diretos via auth)
+      // Auto-recuperação de perfis críticos
       if (!profs || profs.length === 0) {
-        console.log("Nenhum perfil correspondente na tabela casais. Verificando privilégios...");
-        const isSuperAdminEmail = 
+        const isSuperAdminEmail =
           formattedEmail === 'prsergiosoares122@gmail.com' ||
           formattedEmail === 'thiago.medeiros@perfil4d.com' ||
           formattedEmail === 'sergio.soares@perfil4d.com' ||
           formattedEmail === 'sergio@email.com' ||
           formattedEmail === 'pr_sergiosoares@hotmail.com' ||
-          formattedEmail.includes('admin')
-          
-        const salt = bcrypt.genSaltSync(10)
-        const bcryptHash = bcrypt.hashSync(password, salt)
-        const planoDb = isSuperAdminEmail ? `super_admin:${bcryptHash}:${password}` : `analista:10:${bcryptHash}:${password}`
-        
-        console.log("Auto-gerando perfil na tabela casais com plano:", planoDb);
+          formattedEmail.includes('admin');
+
+        const salt = bcrypt.genSaltSync(10);
+        const bcryptHash = bcrypt.hashSync(password, salt);
+        const planoDb = isSuperAdminEmail ? `super_admin:${bcryptHash}:${password}` : `analista:10:${bcryptHash}:${password}`;
+
         const { data: inserted, error: insertError } = await supabase
           .from('casais')
           .insert({
@@ -83,110 +73,83 @@ export default function LoginPage() {
             plano: planoDb,
             status: 'Ativo'
           })
-          .select()
-          
+          .select();
+
         if (!insertError && inserted && inserted[0]) {
-          profs = inserted
-          console.log("Perfil auto-gerado com sucesso no login:", inserted[0]);
-        } else {
-          console.error("Erro ao criar perfil de auto-recuperação no login:", insertError);
+          profs = inserted;
         }
       }
 
-      let userRole = 'Nenhum'
-      let bcryptHash = ''
-      
+      let bypassAutorizado = false;
+      let finalRole = 'analista:10';
+      let nomeUsuario = 'Administrador';
+
       if (profs && profs.length > 0) {
-        userRole = profs[0].plano || ''
-        console.log("ROLE RECUPERADA DO BANCO DE DADOS (plano):", userRole);
-        
-        const isProf = userRole.startsWith('afiliado') || userRole.startsWith('analista') || userRole.startsWith('super_admin') || userRole.startsWith('terapeuta') || userRole.startsWith('psicanalista')
-        if (isProf && (profs[0].status === 'Bloqueado' || profs[0].status === 'Inativo')) {
-          throw new Error('Sua conta está inativa ou bloqueada pelo administrador. Entre em contato com o suporte.');
+        const user = profs[0];
+        finalRole = user.plano || '';
+        nomeUsuario = user.nome_esposo || 'Profissional';
+
+        // Bloqueio de inativos
+        const isProf = finalRole.includes('afiliado') || finalRole.includes('analista') || finalRole.includes('super_admin') || finalRole.includes('terapeuta') || finalRole.includes('psicanalista');
+        if (isProf && (user.status === 'Bloqueado' || user.status === 'Inativo')) {
+          throw new Error('Sua conta está inativa ou bloqueada pelo administrador.');
         }
 
-        // Extrair o hash bcrypt do plano
-        const partes = userRole.split(':')
-        if (partes[0] === 'super_admin') {
-          bcryptHash = partes[1] || ''
-        } else {
-          bcryptHash = partes[2] || ''
-        }
+        // Sistema inteligente de verificação de senha
+        const partes = finalRole.split(':');
+        const hashEncontrado = partes.find(p => p.startsWith('$2a$') || p.startsWith('$2b$'));
 
-        if (bcryptHash && bcryptHash.startsWith('$')) {
-          console.log("Comparando senha fornecida com o hash bcrypt do banco...");
-          const match = bcrypt.compareSync(password, bcryptHash)
-          if (!match) {
-            console.log(`[LOGIN ERROR] Bcrypt compare failed for user ${formattedEmail}. Entered password did not match hash in database.`);
+        if (hashEncontrado) {
+          const match = bcrypt.compareSync(password, hashEncontrado);
+          if (match) {
+            bypassAutorizado = true; // Senha validada pelo Hash
+          } else if (partes.includes(password)) {
+            bypassAutorizado = true; // Fallback de emergência: validação direta
+          } else {
             throw new Error('E-mail ou senha incorretos.');
           }
-          console.log(`[LOGIN SUCCESS] Bcrypt comparison matched successfully for user ${formattedEmail}!`);
-        } else {
-          console.log(`[LOGIN WARNING] No bcrypt hash was found in plano: "${userRole}" for user ${formattedEmail}.`);
+        } else if (partes.includes(password)) {
+          bypassAutorizado = true; // Validação direta caso não tenha hash
         }
-      } else {
-        console.log("Nenhum perfil correspondente na tabela casais. Prosseguindo apenas com autenticação no Supabase Auth...");
       }
 
-      // 2. Acessar via Supabase Auth para obter a sessão RLS
-      const senhaHash = await gerarHashSenha(password)
-      console.log("Tentativa 1 (com hash no Supabase Auth):", senhaHash);
-      
+      // 2. Se a validação local falhou, tenta Supabase Auth
       let authSession = null;
-      let authError = null;
-
-      try {
-        const { data: res, error: err } = await supabase.auth.signInWithPassword({
+      if (!bypassAutorizado) {
+        const senhaHash = await gerarHashSenha(password);
+        let { data: res, error: err } = await supabase.auth.signInWithPassword({
           email: formattedEmail,
           password: senhaHash,
         });
         if (!err && res?.session) {
-          authSession = res.session
+          authSession = res.session;
         } else {
-          authError = err
-        }
-      } catch (e) {
-        authError = e
-      }
-
-      if (authError) {
-        console.log("Tentativa 1 falhou com erro:", authError.message);
-        console.log("Tentativa 2 (texto plano no Supabase Auth):", password);
-        try {
-          const { data: res, error: err } = await supabase.auth.signInWithPassword({
+          let { data: res2, error: err2 } = await supabase.auth.signInWithPassword({
             email: formattedEmail,
             password: password,
           });
-          if (!err && res?.session) {
-            authSession = res.session
-          } else {
-            console.log("Tentativa 2 falhou com erro:", err.message);
+          if (!err2 && res2?.session) {
+            authSession = res2.session;
           }
-        } catch (e) {
-          console.log("Erro no fallback do Supabase Auth:", e.message);
         }
       }
 
-      // Se a verificação bcrypt local foi bem-sucedida, mas o Supabase Auth falhou (por exemplo, devido a e-mail não confirmado ou bloqueio de rate-limit),
-      // nós escrevemos a sessão local no localStorage para permitir o bypass e redirecionamos.
-      if ((profs && profs.length > 0) || authSession) {
-        const finalRole = profs && profs[0] ? profs[0].plano : 'analista:10'
+      // 3. Liberação de Acesso
+      if (bypassAutorizado || authSession) {
         const loggedUser = {
           email: formattedEmail,
           plano: finalRole,
-          nome: profs && profs[0] ? profs[0].nome_esposo : 'Administrador'
-        }
-        localStorage.setItem('perfil4d_logged_user', JSON.stringify(loggedUser))
-        console.log(`[SESSION WRITTEN] Saved logged user info in localStorage for bypass:`, loggedUser);
+          nome: nomeUsuario
+        };
+        localStorage.setItem('perfil4d_logged_user', JSON.stringify(loggedUser));
+        router.push('/dashboard');
       } else {
-        // Se não encontramos registro no banco nem autenticação no Auth, rejeita o login
         throw new Error('E-mail ou senha incorretos.');
       }
 
-      router.push('/dashboard');
     } catch (err) {
-      console.error("Erro final no login:", err);
-      let msg = err.message || "Erro ao entrar. Verifique suas credenciais.";
+      console.error("Erro no login:", err);
+      let msg = err.message || "Erro ao entrar.";
       if (msg.includes("Invalid login credentials") || msg.includes("invalid-credential")) {
         msg = "E-mail ou senha incorretos.";
       }
@@ -195,127 +158,138 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+} catch (err) {
+  console.error("Erro final no login:", err);
+  let msg = err.message || "Erro ao entrar. Verifique suas credenciais.";
+  if (msg.includes("Invalid login credentials") || msg.includes("invalid-credential")) {
+    msg = "E-mail ou senha incorretos.";
+  }
+  setErro(msg);
+} finally {
+  setLoading(false);
+}
+  };
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h1 style={styles.logo}>PERFIL 4D</h1>
-          <p style={styles.subtitle}>Painel do Psicanalista</p>
-        </div>
-
-        <form onSubmit={handleLogin} style={styles.form}>
-          <div style={styles.grupo}>
-            <label style={styles.label}>E-mail de Acesso</label>
-            <input
-              type="email"
-              placeholder="seu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={styles.input}
-              required
-            />
-          </div>
-
-          <div style={styles.grupo}>
-            <label style={styles.label}>Senha de Segurança</label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <input
-                type={senhaVisivel ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ ...styles.input, paddingRight: '45px' }}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setSenhaVisivel(!senhaVisivel)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#666',
-                  padding: 0
-                }}
-              >
-                {senhaVisivel ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'right', marginTop: '-10px' }}>
-            <button
-              type="button"
-              onClick={() => setMostrarEsqueciSenhaModal(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#C9A84C',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Esqueci minha senha
-            </button>
-          </div>
-
-          {erro && <div style={styles.erroBox}>{erro}</div>}
-
-          <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? 'Autenticando...' : 'Entrar'}
-          </button>
-
-          <a
-            href="https://wa.me/5521974013287?text=Estou%20com%20dificuldades%20em%20acessar%20o%20perfil%204D"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={styles.suporteButton}
-          >
-            Fale com o suporte
-          </a>
-        </form>
+return (
+  <div style={styles.container}>
+    <div style={styles.card}>
+      <div style={styles.header}>
+        <h1 style={styles.logo}>PERFIL 4D</h1>
+        <p style={styles.subtitle}>Painel do Psicanalista</p>
       </div>
 
-      {mostrarEsqueciSenhaModal && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalCard}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Recuperar Acesso</h3>
-              <button onClick={() => setMostrarEsqueciSenhaModal(false)} style={styles.modalFecharBtn}>✕</button>
-            </div>
-            <p style={{ fontSize: '14.5px', color: '#666', lineHeight: '1.6', margin: '16px 0' }}>
-              Esqueceu sua senha? Por favor, entre em contato diretamente com o suporte ou o administrador da plataforma para recuperar seu acesso de forma simplificada.
-            </p>
+      <form onSubmit={handleLogin} style={styles.form}>
+        <div style={styles.grupo}>
+          <label style={styles.label}>E-mail de Acesso</label>
+          <input
+            type="email"
+            placeholder="seu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={styles.input}
+            required
+          />
+        </div>
+
+        <div style={styles.grupo}>
+          <label style={styles.label}>Senha de Segurança</label>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={senhaVisivel ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...styles.input, paddingRight: '45px' }}
+              required
+            />
             <button
-              onClick={() => setMostrarEsqueciSenhaModal(false)}
-              style={styles.btnModalFechar}
+              type="button"
+              onClick={() => setSenhaVisivel(!senhaVisivel)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#666',
+                padding: 0
+              }}
             >
-              Entendido
+              {senhaVisivel ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+              )}
             </button>
           </div>
         </div>
-      )}
 
-      <p style={styles.footerText}>Perfil 4D · Área Administrativa Restrita</p>
+        <div style={{ textAlign: 'right', marginTop: '-10px' }}>
+          <button
+            type="button"
+            onClick={() => setMostrarEsqueciSenhaModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#C9A84C',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Esqueci minha senha
+          </button>
+        </div>
+
+        {erro && <div style={styles.erroBox}>{erro}</div>}
+
+        <button type="submit" disabled={loading} style={styles.button}>
+          {loading ? 'Autenticando...' : 'Entrar'}
+        </button>
+
+        <a
+          href="https://wa.me/5521974013287?text=Estou%20com%20dificuldades%20em%20acessar%20o%20perfil%204D"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={styles.suporteButton}
+        >
+          Fale com o suporte
+        </a>
+      </form>
     </div>
-  );
+
+    {mostrarEsqueciSenhaModal && (
+      <div style={styles.modalOverlay}>
+        <div style={styles.modalCard}>
+          <div style={styles.modalHeader}>
+            <h3 style={styles.modalTitle}>Recuperar Acesso</h3>
+            <button onClick={() => setMostrarEsqueciSenhaModal(false)} style={styles.modalFecharBtn}>✕</button>
+          </div>
+          <p style={{ fontSize: '14.5px', color: '#666', lineHeight: '1.6', margin: '16px 0' }}>
+            Esqueceu sua senha? Por favor, entre em contato diretamente com o suporte ou o administrador da plataforma para recuperar seu acesso de forma simplificada.
+          </p>
+          <button
+            onClick={() => setMostrarEsqueciSenhaModal(false)}
+            style={styles.btnModalFechar}
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    )}
+
+    <p style={styles.footerText}>Perfil 4D · Área Administrativa Restrita</p>
+  </div>
+);
 }
 
 const styles = {
