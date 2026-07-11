@@ -71,29 +71,26 @@ export default function Sidebar() {
     }
   }
 
-  const allItems = [
+const menuBase = [
     { label: 'Painel', path: '/dashboard' },
     { label: 'Tutorial', path: '/dashboard/tutorial' },
     { label: 'Cursos', path: '/dashboard/cursos' },
     { label: 'Relatórios', path: '/dashboard/relatorios' }
   ];
 
-  const menuItems = [...allItems, ...(isSuperAdmin ? [
+  const menuAdmin = [
+    { label: 'Casais', path: '/dashboard' }, 
+    { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
     { label: 'Perguntas', path: '/dashboard/perguntas' },
     { label: 'Admin', path: '/dashboard/admin' }
-  ] : [])];
+  ];
 
-  const menuItems = allItems;
-
-
-
+  const menuItems = isSuperAdmin ? [...menuBase, ...menuAdmin] : menuBase;
 
   return (
     <div style={styles.sidebar}>
       <div style={styles.header}>
-        <h1 style={styles.logo}>PERFIL 4D</h1>
-        <p style={styles.logoSub}>Painel Psicanálise</p>
       </div>
 
       <div style={styles.navContainer}>
