@@ -86,10 +86,7 @@ export default function Sidebar() {
     { label: 'Admin', path: '/dashboard/admin' }
   ];
 
-  const menuItems = isSuperAdmin ? [...menuBase, ...menuAdmin] : menuBase;
-  ];
-
-  // 3. A lógica definitiva: se for SuperAdmin junta os dois, se não for, mostra só o básico
+  
   const menuItems = isSuperAdmin ? [...menuBase, ...menuAdmin] : menuBase;
   return (
     <div style={styles.sidebar}>
