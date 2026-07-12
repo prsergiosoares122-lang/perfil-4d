@@ -9,6 +9,8 @@ export default function Sidebar() {
   const sair = async () => {
     await supabase.auth.signOut();
     router.push('/login');
+
+
   };
 
   const [role, setRole] = useState('Analista')
@@ -49,14 +51,10 @@ export default function Sidebar() {
         }
       }
 
-      if (
-        email === 'prsergiosoares122@gmail.com' ||
-        email === 'thiago.medeiros@perfil4d.com' ||
-        email === 'sergio@email.com' ||
-        email === 'pr_sergiosoares@hotmail.com' ||
-        email.includes('admin') ||
-        userPlano.startsWith('super_admin')
-      ) {
+      email === 'prsergiosoares122@gmail.com' ||
+      email === 'thiago.medeiros@perfil4d.com' ||
+      email === 'pr_sergiosoares@hotmail.com' ||
+      userPlano === 'super_admin'
         setIsSuperAdmin(true)
         setRole('Super Admin')
       } else {
