@@ -29,7 +29,7 @@ export default function Sidebar() {
       email = session.user.email.toLowerCase()
     } else {
       if (typeof window !== 'undefined') {
-        const savedUser = localStorage.getItem('perfil4d_logged_user')
+        const savedUser = localStorage.getItem('perfil4d_logged')
         if (savedUser) {
           const user = JSON.parse(savedUser)
           email = user.email.toLowerCase()
@@ -38,49 +38,24 @@ export default function Sidebar() {
       }
     }
 
-    if (email) {
-      if (!userPlano) {
-        const { data } = await supabase
-          .from('casais')
-          .select('plano')
-          .eq('nome_esposa', email)
-          .limit(1)
-
-        if (data && data[0]) {
-          userPlano = data[0].plano || ''
-        }
-      }
-
+    if (
       email === 'prsergiosoares122@gmail.com' ||
       email === 'thiago.medeiros@perfil4d.com' ||
       email === 'pr_sergiosoares@hotmail.com' ||
       userPlano === 'super_admin'
-        setIsSuperAdmin(true)
-        setRole('Super Admin')
-      } else {
-        if (userPlano.startsWith('afiliado')) {
-          setRole('Afiliado')
-        } else if (userPlano.startsWith('analista')) {
-          setRole('Analista')
-        } else if (userPlano.startsWith('terapeuta')) {
-          setRole('Terapeuta de Casal')
-        } else if (userPlano.startsWith('psicanalista')) {
-          setRole('Psicanalista')
-        } else {
-          setRole('Analista')
-        }
+    ) {
+      setIsSuperAdmin(true)
+      setRole('Super Admin')
+    } else {
+      if (userPlano.startsWith('afiliado')) {
+        setRole('Afiliado')
+      } else if (userPlano.startsWith('analista')) {
+        setRole('Analista')
+      } else if (userPlano.startsWith('terapeuta')) {
+        setRole('Terapeuta de Casal')
       }
     }
   }
-
-  const menuBase = [
-    { label: 'Painel', path: '/dashboard' },
-    { label: 'Tutorial', path: '/dashboard/tutorial' },
-    { label: 'Cursos', path: '/dashboard/cursos' },
-    { label: 'Relatórios', path: '/dashboard/relatorios' }
-  ];
-
-  const menuAdmin = [
     { label: 'Casais', path: '/dashboard' },
     { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
