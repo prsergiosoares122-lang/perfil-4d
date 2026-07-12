@@ -56,6 +56,14 @@ export default function Sidebar() {
       }
     }
   }
+    const menuBase = [
+    { label: 'Painel', path: '/dashboard' },
+    { label: 'Tutorial', path: '/dashboard/tutorial' },
+    { label: 'Cursos', path: '/dashboard/cursos' },
+    { label: 'Relatórios', path: '/dashboard/relatorios' }
+  ];
+
+  const menuAdmin = [
     { label: 'Casais', path: '/dashboard' },
     { label: 'Afiliados', path: '/dashboard/afiliados' },
     { label: 'Configurações', path: '/dashboard/configuracoes' },
@@ -63,8 +71,8 @@ export default function Sidebar() {
     { label: 'Admin', path: '/dashboard/admin' }
   ];
 
-  
   const menuItems = isSuperAdmin ? [...menuBase, ...menuAdmin] : menuBase;
+
   return (
     <div style={styles.sidebar}>
       <div style={styles.header}>
