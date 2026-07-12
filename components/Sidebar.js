@@ -6,6 +6,10 @@ import { supabase } from '@/lib/supabase'
 export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
+  const sair = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const [role, setRole] = useState('Analista')
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
