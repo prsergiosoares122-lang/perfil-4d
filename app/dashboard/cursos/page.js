@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 export default function CursosPage() {
   const [modalAberto, setModalAberto] = useState(false)
+  const [cursoSelecionado, setCursoSelecionado] = useState(null)
   const [cursos, setCursos] = useState([])
 
   return (
@@ -12,6 +13,7 @@ export default function CursosPage() {
         <button onClick={() => setModalAberto(true)} style={styles.btnAdicionar}>+ Adicionar Curso</button>
       </div>
 
+      {/* MODAL ADICIONAR CURSO */}
       {modalAberto && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
@@ -19,19 +21,10 @@ export default function CursosPage() {
               <h3 style={styles.modalTitle}>Adicionar Novo Curso</h3>
               <button onClick={() => setModalAberto(false)} style={styles.modalFecharBtn}>✕</button>
             </div>
-            
             <form style={styles.modalForm} onSubmit={(e) => { e.preventDefault(); setModalAberto(false); }}>
               <div style={styles.modalGrupo}>
                 <label style={styles.modalLabel}>TÍTULO DO CURSO *</label>
                 <input style={styles.modalInput} placeholder="Ex: Formação de Analista Perfil 4D" required />
-              </div>
-              <div style={styles.modalGrupo}>
-                <label style={styles.modalLabel}>LINK DA IMAGEM DE CAPA</label>
-                <input style={styles.modalInput} placeholder="Cole o link da imagem..." />
-              </div>
-              <div style={styles.modalGrupo}>
-                <label style={styles.modalLabel}>BREVE DESCRIÇÃO</label>
-                <textarea style={{...styles.modalInput, height: '80px'}} placeholder="Explique o objetivo deste curso..." />
               </div>
               <button type="submit" style={styles.btnModalSalvar}>Salvar Curso</button>
             </form>
