@@ -55,7 +55,7 @@ function RelatorioFinalContent() {
         await supabase.from('respostas').delete().eq('casal_id', casalIdParam)
         // 2. Excluir casal
         await supabase.from('casais').delete().eq('id', casalIdParam)
-        
+
         alert("Sessão expirada por inatividade. Todos os dados temporários deste casal foram excluídos permanentemente por segurança e sigilo clínico.")
         window.dispatchEvent(new Event('stats-updated'))
         router.push('/dashboard')
@@ -116,7 +116,7 @@ function RelatorioFinalContent() {
         .from('respostas')
         .select('*')
         .eq('casal_id', id)
-      
+
       if (errorRespostas) throw errorRespostas
 
       const respEsposo = respostasData.find(r => r.conjuge === 'esposo')
@@ -187,7 +187,7 @@ function RelatorioFinalContent() {
 
   const handleImprimir = (tipo) => {
     if (!casal || !pctEsposo || !pctEsposa) return
-    
+
     let htmlConteudo = ''
     if (tipo === 'esposo') {
       htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposo')
@@ -223,7 +223,7 @@ function RelatorioFinalContent() {
     const scores = tipo === 'esposo' ? pctEsposo : pctEsposa
     const nome = tipo === 'esposo' ? casal.nome_esposo : casal.nome_esposa
     const nomeParceiro = tipo === 'esposo' ? casal.nome_esposa : casal.nome_esposo
-    
+
     const dadosGuia = gerarGuia90Dias(nome, tipo, nomeParceiro, scores)
     const htmlConteudo = gerarImpressaoGuiaHTML(dadosGuia)
 
