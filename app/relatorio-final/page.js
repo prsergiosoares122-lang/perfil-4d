@@ -143,121 +143,89 @@ function RelatorioFinalContent() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  // === MOTOR DE IMPRESSÃO E DOWNLOAD ===
+  const imprimirComNome = (htmlConteudo, nomeArquivo) => {
+    // Guarda o título original da página
+    const tituloOriginal = document.title;
+    // Força o navegador a adotar o nome do arquivo desejado
+    document.title = nomeArquivo;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    // Tenta injetar a tag title também dentro do HTML do iframe por garantia
+    const htmlComTitulo = htmlConteudo.replace(/<title>.*?<\/title>/i, `<title>${nomeArquivo}</title>`);
+    doc.write(htmlComTitulo);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        // Devolve o título original da página assim que a janela de impressão abrir
+        document.title = tituloOriginal;
+      }, 1000);
+    }, 500);
+  }
+
   const handleDownloadPDF = async (tipo) => {
-    if (!casal || !pctEsposo || !pctEsposa) return
-    setLoadingPrint(true)
-    try {
-      let htmlConteudo = ''
-      if (tipo === 'esposo') {
-        htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposo')
-      } else if (tipo === 'esposa') {
-        htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposa')
-      } else {
-        htmlConteudo = gerarRelatorioConsultor(casal, pctEsposo, pctEsposa)
-      }
-
-      const tempDiv = document.createElement('div')
-      tempDiv.style.position = 'absolute'
-      tempDiv.style.left = '-9999px'
-      tempDiv.style.width = '800px'
-      tempDiv.innerHTML = htmlConteudo
-      document.body.appendChild(tempDiv)
-
-      const { default: jsPDF } = await import('jspdf')
-      const html2canvas = (await import('html2canvas')).default
-
-      const doc = new jsPDF('p', 'pt', 'a4')
-      await doc.html(tempDiv, {
-        callback: function (pdf) {
-          pdf.save(`Perfil4D_${tipo}_${casal.nome_esposo.split(' ')[0]}_${casal.nome_esposa.split(' ')[0]}.pdf`)
-          document.body.removeChild(tempDiv)
-          setLoadingPrint(false)
-        },
-        x: 0,
-        y: 0,
-        width: 595.28,
-        windowWidth: 800
-      })
-    } catch (e) {
-      console.error(e)
-      alert('Houve um problema ao gerar o PDF. Você pode imprimir o arquivo e salvar como PDF nas opções nativas.')
-      setLoadingPrint(false)
-    }
+    // Unificamos o Download com a Impressão para garantir 100% de fidelidade visual 
+    // e acabar com o erro das páginas em branco geradas pelo jsPDF.
+    handleImprimir(tipo);
   }
 
   const handleImprimir = (tipo) => {
-    if (!casal || !pctEsposo || !pctEsposa) return
+    if (!casal || !pctEsposo || !pctEsposa) return;
 
-    let htmlConteudo = ''
+    let htmlConteudo = '';
+    let nomeArquivo = '';
+
     if (tipo === 'esposo') {
-      htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposo')
+      htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposo');
+      nomeArquivo = `Relatorio_Esposo_${casal.nome_esposo.split(' ')[0]}`;
     } else if (tipo === 'esposa') {
-      htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposa')
+      htmlConteudo = gerarRelatorioHTML(casal, pctEsposo, pctEsposa, 'esposa');
+      nomeArquivo = `Relatorio_Esposa_${casal.nome_esposa.split(' ')[0]}`;
     } else {
-      htmlConteudo = gerarRelatorioConsultor(casal, pctEsposo, pctEsposa)
+      htmlConteudo = gerarRelatorioConsultor(casal, pctEsposo, pctEsposa);
+      nomeArquivo = `Relatorio_Consultor_${casal.nome_esposo.split(' ')[0]}_${casal.nome_esposa.split(' ')[0]}`;
     }
 
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'absolute'
-    iframe.style.width = '0px'
-    iframe.style.height = '0px'
-    iframe.style.border = 'none'
-    document.body.appendChild(iframe)
-
-    const doc = iframe.contentWindow.document
-    doc.open()
-    doc.write(htmlConteudo)
-    doc.close()
-
-    setTimeout(() => {
-      iframe.contentWindow.focus()
-      iframe.contentWindow.print()
-      setTimeout(() => {
-        document.body.removeChild(iframe)
-      }, 1000)
-    }, 500)
+    imprimirComNome(htmlConteudo, nomeArquivo);
   }
 
   const handleImprimirReprog = (tipo) => {
-    if (!casal || !pctEsposo || !pctEsposa) return
-    const scores = tipo === 'esposo' ? pctEsposo : pctEsposa
-    const nome = tipo === 'esposo' ? casal.nome_esposo : casal.nome_esposa
-    const nomeParceiro = tipo === 'esposo' ? casal.nome_esposa : casal.nome_esposo
+    if (!casal || !pctEsposo || !pctEsposa) return;
 
-    const dadosGuia = gerarGuia90Dias(nome, tipo, nomeParceiro, scores)
-    const htmlConteudo = gerarImpressaoGuiaHTML(dadosGuia)
+    const scores = tipo === 'esposo' ? pctEsposo : pctEsposa;
+    const nome = tipo === 'esposo' ? casal.nome_esposo : casal.nome_esposa;
+    const nomeParceiro = tipo === 'esposo' ? casal.nome_esposa : casal.nome_esposo;
 
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'absolute'
-    iframe.style.width = '0px'
-    iframe.style.height = '0px'
-    iframe.style.border = 'none'
-    document.body.appendChild(iframe)
+    const dadosGuia = gerarGuia90Dias(nome, tipo, nomeParceiro, scores);
+    const htmlConteudo = gerarImpressaoGuiaHTML(dadosGuia);
 
-    const doc = iframe.contentWindow.document
-    doc.open()
-    doc.write(htmlConteudo)
-    doc.close()
+    const nomeArquivo = `Reprogramacao_Comportamental_${nome.split(' ')[0]}`;
 
-    setTimeout(() => {
-      iframe.contentWindow.focus()
-      iframe.contentWindow.print()
-      setTimeout(() => {
-        document.body.removeChild(iframe)
-      }, 1000)
-    }, 500)
+    imprimirComNome(htmlConteudo, nomeArquivo);
   }
-
-  if (erro) return (
-    <div style={styles.errorContainer}>
-      <div style={styles.errorCard}>
-        <h2 style={styles.errorTitle}>Relatório Indisponível</h2>
-        <p style={styles.errorDesc}>{erro}</p>
-        <button onClick={() => router.push('/dashboard')} style={styles.btnVoltar}>
-          Voltar ao Painel
-        </button>
-      </div>
+  // ======================================
+  <div style={styles.errorContainer}>
+    <div style={styles.errorCard}>
+      <h2 style={styles.errorTitle}>Relatório Indisponível</h2>
+      <p style={styles.errorDesc}>{erro}</p>
+      <button onClick={() => router.push('/dashboard')} style={styles.btnVoltar}>
+        Voltar ao Painel
+      </button>
     </div>
+  </div>
   )
 
   if (loading) return (
